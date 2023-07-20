@@ -33,14 +33,15 @@ type help_keymap struct {
 }
 
 type model struct {
-	textarea                textarea.Model
-	prompt_screen_err       string
-	prompting               bool
-	selected_screen         string
-	response_code_text      string // response to the prompt as code
-	response_code_textInput textinput.Model
-	help                    help.Model
-	help_keymap             help_keymap
+	textarea                 textarea.Model
+	prompt_screen_err        string
+	prompting                bool
+	selected_screen          string
+	response_code_text       string // response to the prompt as code
+	response_code_textInput  textinput.Model
+	help                     help.Model
+	help_keymap              help_keymap
+	command_explanation_text string
 }
 
 func initialModel() model {
@@ -56,12 +57,13 @@ func initialModel() model {
 	ti2.Width = 0
 
 	return model{
-		textarea:                ti,
-		prompt_screen_err:       "",
-		selected_screen:         "prompt_screen",
-		response_code_text:      `say "hello potato"`,
-		response_code_textInput: ti2,
-		help:                    help.New(),
+		textarea:                 ti,
+		prompt_screen_err:        "",
+		selected_screen:          "prompt_screen",
+		response_code_text:       `say "hello potato"`,
+		response_code_textInput:  ti2,
+		command_explanation_text: "",
+		help:                     help.New(),
 		help_keymap: help_keymap{
 			start: key.NewBinding(
 				key.WithKeys("ctrl+s"),
@@ -157,6 +159,10 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 			case key.Matches(msg, m.help_keymap.run):
 				return m, tea.Quit
 
+			case key.Matches(msg, m.help_keymap.explain):
+				m.command_explanation_text = "It says hello to the potato 🥔"
+				return m, nil
+
 			case key.Matches(msg, m.help_keymap.go_back):
 				m.textarea.Focus()
 				m.textarea.SetValue("")
@@ -182,7 +188,11 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 				return m, nil
 
 			case key.Matches(msg, m.help_keymap.save):
-				m.response_code_text = m.response_code_textInput.Value()
+				if m.response_code_textInput.Value() != m.response_code_text {
+					m.response_code_text = m.response_code_textInput.Value()
+					// we just updated the code so the explanation is no longer valid
+					m.command_explanation_text = ""
+				}
 				m.selected_screen = "prompt_response_screen"
 				return m, nil
 			}
@@ -225,6 +235,11 @@ func (m model) View() string {
 		s := "Your prompt response..\n\n"
 
 		s += "> " + m.response_code_text
+
+		if m.command_explanation_text != "" {
+			s += "\n\n"
+			s += m.command_explanation_text
+		}
 
 		// The footer
 		s += "\n\n"
