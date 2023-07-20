@@ -64,35 +64,35 @@ func initialModel() model {
 		help_keymap: help_keymap{
 			start: key.NewBinding(
 				key.WithKeys("ctrl+s"),
-				key.WithHelp("ctrl+s", "Start"),
+				key.WithHelp("[ ctrl+s ]", "Start"),
 			),
 			save: key.NewBinding(
 				key.WithKeys("enter"),
-				key.WithHelp("enter", "Save"),
+				key.WithHelp("[ enter  ]", "Save"),
 			),
 			run: key.NewBinding(
 				key.WithKeys("enter"),
-				key.WithHelp("enter", "Run on commandline"),
+				key.WithHelp("[ enter  ]", "Run on commandline"),
 			),
 			modify: key.NewBinding(
 				key.WithKeys("m"),
-				key.WithHelp("m", "Modify command"),
+				key.WithHelp("[ m      ]", "Modify command"),
 			),
 			explain: key.NewBinding(
 				key.WithKeys("e"),
-				key.WithHelp("e", "Explain command"),
+				key.WithHelp("[ e      ]", "Explain command"),
 			),
 			copy: key.NewBinding(
 				key.WithKeys("c"),
-				key.WithHelp("c", "Copy command to clipboard"),
+				key.WithHelp("[ c      ]", "Copy command to clipboard"),
 			),
 			go_back: key.NewBinding(
 				key.WithKeys("esc"),
-				key.WithHelp("esc", "Go back"),
+				key.WithHelp("[ esc    ]", "Go back"),
 			),
 			exit: key.NewBinding(
 				key.WithKeys("ctrl+c"),
-				key.WithHelp("ctrl+c", "Exit"),
+				key.WithHelp("[ ctrl+c ]", "Exit"),
 			),
 		},
 	}
@@ -189,7 +189,7 @@ func (m model) View() string {
 	switch m.selected_screen {
 	case "prompt_screen":
 		// The header
-		s := "Your prompt..\n\n"
+		s := "Your prompt\n\n"
 
 		s += m.textarea.View()
 
