@@ -7,7 +7,10 @@ import (
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textarea"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/glamour"
+	"github.com/charmbracelet/lipgloss"
 )
 
 func main() {
@@ -37,6 +40,7 @@ type model struct {
 	selected_screen string
 	help            help.Model
 	keymap          keymap
+	viewport        viewport.Model
 }
 
 func initialModel() model {
@@ -44,11 +48,20 @@ func initialModel() model {
 	ti.Placeholder = "Once upon a time..."
 	ti.Focus()
 
+	vp := viewport.New(78, 20)
+
+	vp.Style = lipgloss.NewStyle().
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("62")).
+		PaddingRight(2)
+
 	return model{
 		textarea:        ti,
 		err:             nil,
 		selected_screen: "prompt_screen",
 		help:            help.New(),
+		viewport:        vp,
+
 		keymap: keymap{
 			start: key.NewBinding(
 				key.WithKeys("ctrl+s"),
@@ -111,6 +124,44 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 			switch msg.String() {
 			case "ctrl+s":
 				m.selected_screen = "prompt_response_screen"
+
+				renderer, _ := glamour.NewTermRenderer(
+					glamour.WithAutoStyle(),
+					glamour.WithWordWrap(78),
+				)
+
+				str, _ := renderer.Render(`
+# Hello, World!
+## This is a test This is a testThis is a testThis is a testThis is a test
+[link](https://example.com)
+- list item 1
+- list item 2
+- list item 3
+- list item 4
+	- list item 1
+	- list item 2
+	- list item 3
+	- list item 4
+
+> This is a blockquote
+> This is a blockquote
+> This is a blockquote
+
+This is a test This is a testThis is a testThis is a testThis is a test
+This is a test This is a testThis is a testThis is a testThis is a test
+
+This is a test This is a testThis is a testThis is a testThis is a test
+This is a test This is a testThis is a testThis is a testThis is a test
+
+#### This is a test This is a testThis is a testThis is a testThis is a test
+#### This is a test This is a testThis is a testThis is a testThis is a test
+
+
+					`)
+				// str, _ := renderer.Render("```bash\nrmlol -rf /\n```")
+
+				m.viewport.SetContent(str)
+
 				return m, nil
 
 			default:
@@ -126,6 +177,9 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(cmds...)
 
 	case "prompt_response_screen":
+		// var cmds []tea.Cmd
+		var cmd tea.Cmd
+
 		switch msg := msg.(type) {
 		case tea.KeyMsg:
 			switch {
@@ -137,8 +191,16 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 				m.selected_screen = "prompt_screen"
 				return m, nil
 
+			default:
+
+				m.viewport, cmd = m.viewport.Update(msg)
+				return m, cmd
+
 			}
 		}
+		// m.viewport, cmd = m.viewport.Update(msg)
+		// cmds = append(cmds, cmd)
+		// return m, tea.Batch(cmds...)
 	}
 
 	return m, nil
@@ -169,6 +231,9 @@ func (m model) View() string {
 		s := "Your prompt response..\n\n"
 
 		s += "> rmlol -rf /"
+
+		s += "\n\n"
+		s += m.viewport.View()
 
 		// The footer
 		// s += "\n\n"
