@@ -34,7 +34,7 @@ type help_keymap struct {
 
 type model struct {
 	textarea                textarea.Model
-	err                     error
+	prompt_screen_err       string
 	prompting               bool
 	selected_screen         string
 	response_code_text      string // response to the prompt as code
@@ -56,7 +56,7 @@ func initialModel() model {
 
 	return model{
 		textarea:                ti,
-		err:                     nil,
+		prompt_screen_err:       "",
 		selected_screen:         "prompt_screen",
 		response_code_text:      `say "hello potato"`,
 		response_code_textInput: ti2,
@@ -124,7 +124,14 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 		switch msg := msg.(type) {
 		case tea.KeyMsg:
 			switch {
+
 			case key.Matches(msg, m.help_keymap.start):
+
+				if m.textarea.Value() == "" {
+					m.prompt_screen_err = "Prompt cannot be empty"
+					return m, nil
+				}
+
 				m.selected_screen = "prompt_response_screen"
 				return m, nil
 
@@ -133,6 +140,7 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 					cmd = m.textarea.Focus()
 					cmds = append(cmds, cmd)
 				}
+				m.prompt_screen_err = ""
 			}
 		}
 
@@ -144,8 +152,10 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 		switch msg := msg.(type) {
 		case tea.KeyMsg:
 			switch {
+
 			case key.Matches(msg, m.help_keymap.run):
 				return m, tea.Quit
+
 			case key.Matches(msg, m.help_keymap.go_back):
 				m.textarea.Focus()
 				m.textarea.SetValue("")
@@ -193,9 +203,9 @@ func (m model) View() string {
 
 		s += m.textarea.View()
 
-		if m.prompting {
+		if m.prompt_screen_err != "" {
 			s += "\n\n"
-			s += "You entered: " + m.textarea.Value() + "\n"
+			s += m.prompt_screen_err
 		}
 
 		// The footer
