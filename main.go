@@ -47,12 +47,13 @@ func initialModel() model {
 	ti := textarea.New()
 	ti.ShowLineNumbers = false
 	ti.Placeholder = "How to..."
+
 	ti.Focus()
 
 	ti2 := textinput.New()
 	ti2.Focus()
 	ti2.CharLimit = 156
-	ti2.Width = 20
+	ti2.Width = 0
 
 	return model{
 		textarea:                ti,
