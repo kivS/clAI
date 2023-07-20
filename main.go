@@ -232,7 +232,7 @@ func (m model) View() string {
 		return s
 
 	case "prompt_response_screen":
-		s := "Your prompt response..\n\n"
+		s := "Result\n\n"
 
 		s += "> " + m.response_code_text
 
@@ -256,7 +256,7 @@ func (m model) View() string {
 		return s
 
 	case "response_edit_screen":
-		s := "Edit the response code\n\n"
+		s := "Edit the result command\n\n"
 
 		s += m.response_code_textInput.View()
 
