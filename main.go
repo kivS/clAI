@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/charmbracelet/bubbles/help"
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -19,6 +21,17 @@ func main() {
 
 type errMsg error
 
+type help_keymap struct {
+	start   key.Binding
+	save    key.Binding
+	run     key.Binding
+	modify  key.Binding
+	explain key.Binding
+	copy    key.Binding
+	go_back key.Binding
+	exit    key.Binding
+}
+
 type model struct {
 	textarea                textarea.Model
 	err                     error
@@ -26,6 +39,8 @@ type model struct {
 	selected_screen         string
 	response_code_text      string // response to the prompt as code
 	response_code_textInput textinput.Model
+	help                    help.Model
+	help_keymap             help_keymap
 }
 
 func initialModel() model {
@@ -45,6 +60,41 @@ func initialModel() model {
 		selected_screen:         "prompt_screen",
 		response_code_text:      `say "hello potato"`,
 		response_code_textInput: ti2,
+		help:                    help.New(),
+		help_keymap: help_keymap{
+			start: key.NewBinding(
+				key.WithKeys("ctrl+s"),
+				key.WithHelp("ctrl+s", "Start"),
+			),
+			save: key.NewBinding(
+				key.WithKeys("enter"),
+				key.WithHelp("enter", "Save"),
+			),
+			run: key.NewBinding(
+				key.WithKeys("enter"),
+				key.WithHelp("enter", "Run on commandline"),
+			),
+			modify: key.NewBinding(
+				key.WithKeys("m"),
+				key.WithHelp("m", "Modify command"),
+			),
+			explain: key.NewBinding(
+				key.WithKeys("e"),
+				key.WithHelp("e", "Explain command"),
+			),
+			copy: key.NewBinding(
+				key.WithKeys("c"),
+				key.WithHelp("c", "Copy command to clipboard"),
+			),
+			go_back: key.NewBinding(
+				key.WithKeys("esc"),
+				key.WithHelp("esc", "Go back"),
+			),
+			exit: key.NewBinding(
+				key.WithKeys("ctrl+c"),
+				key.WithHelp("ctrl+c", "Exit"),
+			),
+		},
 	}
 }
 
@@ -55,8 +105,7 @@ func (m model) Init() tea.Cmd {
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if msg, ok := msg.(tea.KeyMsg); ok {
-		k := msg.String()
-		if k == "ctrl+c" {
+		if key.Matches(msg, m.help_keymap.exit) {
 			return m, tea.Quit
 		}
 
@@ -74,8 +123,8 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 
 		switch msg := msg.(type) {
 		case tea.KeyMsg:
-			switch msg.String() {
-			case "ctrl+s":
+			switch {
+			case key.Matches(msg, m.help_keymap.start):
 				m.selected_screen = "prompt_response_screen"
 				return m, nil
 
@@ -94,16 +143,16 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 	case "prompt_response_screen":
 		switch msg := msg.(type) {
 		case tea.KeyMsg:
-			switch msg.String() {
-			case "enter":
+			switch {
+			case key.Matches(msg, m.help_keymap.run):
 				return m, tea.Quit
-			case "esc":
+			case key.Matches(msg, m.help_keymap.go_back):
 				m.textarea.Focus()
 				m.textarea.SetValue("")
 				m.selected_screen = "prompt_screen"
 				return m, nil
 
-			case "m":
+			case key.Matches(msg, m.help_keymap.modify):
 				m.response_code_textInput.SetValue(m.response_code_text)
 				m.selected_screen = "response_edit_screen"
 				return m, nil
@@ -116,12 +165,12 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 
 		switch msg := msg.(type) {
 		case tea.KeyMsg:
-			switch msg.String() {
-			case "esc":
+			switch {
+			case key.Matches(msg, m.help_keymap.go_back):
 				m.selected_screen = "prompt_response_screen"
 				return m, nil
 
-			case "enter":
+			case key.Matches(msg, m.help_keymap.save):
 				m.response_code_text = m.response_code_textInput.Value()
 				m.selected_screen = "prompt_response_screen"
 				return m, nil
@@ -151,7 +200,12 @@ func (m model) View() string {
 
 		// The footer
 		s += "\n\n"
-		s += "\n(ctrl+s to send) / (ctrl+c to quit)\n"
+		s += m.help.FullHelpView([][]key.Binding{
+			{
+				m.help_keymap.start,
+				m.help_keymap.exit,
+			},
+		})
 
 		// Send the UI for rendering
 		return s
@@ -163,7 +217,16 @@ func (m model) View() string {
 
 		// The footer
 		s += "\n\n"
-		s += "\n(enter to run code) / (e to explain code)  / (m to edit response code) / (esc to go back to prompt) / (ctrl+c to quit) \n"
+		s += m.help.FullHelpView([][]key.Binding{
+			{
+				m.help_keymap.run,
+				m.help_keymap.explain,
+				m.help_keymap.modify,
+				m.help_keymap.copy,
+				m.help_keymap.go_back,
+				m.help_keymap.exit,
+			},
+		})
 		return s
 
 	case "response_edit_screen":
@@ -173,7 +236,13 @@ func (m model) View() string {
 
 		// The footer
 		s += "\n\n"
-		s += "\n(enter to save) / (esc  to go back) / (ctrl+c to quit) \n"
+		s += m.help.FullHelpView([][]key.Binding{
+			{
+				m.help_keymap.save,
+				m.help_keymap.go_back,
+				m.help_keymap.exit,
+			},
+		})
 		return s
 
 	default:

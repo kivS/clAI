@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/charmbracelet/bubbles/help"
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -18,11 +20,23 @@ func main() {
 
 type errMsg error
 
+type keymap struct {
+	start   key.Binding
+	run     key.Binding
+	modify  key.Binding
+	explain key.Binding
+	copy    key.Binding
+	go_back key.Binding
+	exit    key.Binding
+}
+
 type model struct {
 	textarea        textarea.Model
 	err             error
 	prompting       bool
 	selected_screen string
+	help            help.Model
+	keymap          keymap
 }
 
 func initialModel() model {
@@ -34,6 +48,37 @@ func initialModel() model {
 		textarea:        ti,
 		err:             nil,
 		selected_screen: "prompt_screen",
+		help:            help.New(),
+		keymap: keymap{
+			start: key.NewBinding(
+				key.WithKeys("ctrl+s"),
+				key.WithHelp("ctrl+s", "Start"),
+			),
+			run: key.NewBinding(
+				key.WithKeys("enter"),
+				key.WithHelp("enter", "Run on commandline"),
+			),
+			modify: key.NewBinding(
+				key.WithKeys("m"),
+				key.WithHelp("m", "Modify command"),
+			),
+			explain: key.NewBinding(
+				key.WithKeys("e"),
+				key.WithHelp("e", "Explain command"),
+			),
+			copy: key.NewBinding(
+				key.WithKeys("c"),
+				key.WithHelp("c", "Copy command to clipboard"),
+			),
+			go_back: key.NewBinding(
+				key.WithKeys("esc"),
+				key.WithHelp("esc", "Go back"),
+			),
+			exit: key.NewBinding(
+				key.WithKeys("ctrl+c"),
+				key.WithHelp("ctrl+c", "Exit"),
+			),
+		},
 	}
 }
 
@@ -83,10 +128,10 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 	case "prompt_response_screen":
 		switch msg := msg.(type) {
 		case tea.KeyMsg:
-			switch msg.String() {
-			case "enter":
+			switch {
+			case key.Matches(msg, m.keymap.exit):
 				return m, tea.Quit
-			case "r":
+			case key.Matches(msg, m.keymap.go_back):
 				m.textarea.Focus()
 				m.textarea.SetValue("")
 				m.selected_screen = "prompt_screen"
@@ -126,8 +171,16 @@ func (m model) View() string {
 		s += "> rmlol -rf /"
 
 		// The footer
+		// s += "\n\n"
+		// s += "\n(enter to run code) / (e to explain code) / (r to redo prompt) / (ctrl+c to quit) \n"
 		s += "\n\n"
-		s += "\n(enter to run code) / (e to explain code) / (r to redo prompt) / (ctrl+c to quit) \n"
+
+		s += m.help.FullHelpView([][]key.Binding{
+			{
+				m.keymap.go_back,
+				m.keymap.exit,
+			},
+		})
 		return s
 
 	default:
