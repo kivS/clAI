@@ -30,6 +30,7 @@ type model struct {
 
 func initialModel() model {
 	ti := textarea.New()
+	ti.ShowLineNumbers = false
 	ti.Placeholder = "How to..."
 	ti.Focus()
 
@@ -42,7 +43,7 @@ func initialModel() model {
 		textarea:                ti,
 		err:                     nil,
 		selected_screen:         "prompt_screen",
-		response_code_text:      `rmlol -rf /`,
+		response_code_text:      `say "hello potato"`,
 		response_code_textInput: ti2,
 	}
 }
