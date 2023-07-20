@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/charmbracelet/bubbles/textarea"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -19,19 +20,30 @@ func main() {
 type errMsg error
 
 type model struct {
-	textarea  textarea.Model
-	err       error
-	prompting bool
+	textarea                textarea.Model
+	err                     error
+	prompting               bool
+	selected_screen         string
+	response_code_text      string
+	response_code_textInput textinput.Model
 }
 
 func initialModel() model {
 	ti := textarea.New()
-	ti.Placeholder = "Once upon a time..."
+	ti.Placeholder = "How to..."
 	ti.Focus()
 
+	ti2 := textinput.New()
+	ti2.Focus()
+	ti2.CharLimit = 156
+	ti2.Width = 20
+
 	return model{
-		textarea: ti,
-		err:      nil,
+		textarea:                ti,
+		err:                     nil,
+		selected_screen:         "prompt_screen",
+		response_code_text:      `rmlol -rf /`,
+		response_code_textInput: ti2,
 	}
 }
 
@@ -41,63 +53,131 @@ func (m model) Init() tea.Cmd {
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-
-	var cmds []tea.Cmd
-	var cmd tea.Cmd
-
-	switch msg := msg.(type) {
-
-	// Is it a key press?
-	case tea.KeyMsg:
-
-		// Cool, what was the actual key pressed?
-		switch msg.String() {
-
-		case "ctrl+s":
-			// ctrl+enter will send the message
-			m.textarea.Blur()
-			m.prompting = true
-
-			return m, nil
-
-		// These keys should exit the program.
-		case "ctrl+c":
+	if msg, ok := msg.(tea.KeyMsg); ok {
+		k := msg.String()
+		if k == "ctrl+c" {
 			return m, tea.Quit
-
-		default:
-			if !m.textarea.Focused() {
-				cmd = m.textarea.Focus()
-				cmds = append(cmds, cmd)
-			}
-
 		}
-	case errMsg:
-		m.err = msg
-		return m, nil
 
 	}
 
-	// Return the updated model to the Bubble Tea runtime for processing.
-	m.textarea, cmd = m.textarea.Update(msg)
-	cmds = append(cmds, cmd)
-	return m, tea.Batch(cmds...)
+	// offload update to the selected screen
+	return updateSelectedScreen(msg, m)
+}
+
+func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
+	switch m.selected_screen {
+	case "prompt_screen":
+		var cmds []tea.Cmd
+		var cmd tea.Cmd
+
+		switch msg := msg.(type) {
+		case tea.KeyMsg:
+			switch msg.String() {
+			case "ctrl+s":
+				m.selected_screen = "prompt_response_screen"
+				return m, nil
+
+			default:
+				if !m.textarea.Focused() {
+					cmd = m.textarea.Focus()
+					cmds = append(cmds, cmd)
+				}
+			}
+		}
+
+		m.textarea, cmd = m.textarea.Update(msg)
+		cmds = append(cmds, cmd)
+		return m, tea.Batch(cmds...)
+
+	case "prompt_response_screen":
+		switch msg := msg.(type) {
+		case tea.KeyMsg:
+			switch msg.String() {
+			case "enter":
+				return m, tea.Quit
+			case "r":
+				m.textarea.Focus()
+				m.textarea.SetValue("")
+				m.selected_screen = "prompt_screen"
+				return m, nil
+
+			case "m":
+				m.response_code_textInput.SetValue(m.response_code_text)
+				m.selected_screen = "response_edit_screen"
+				return m, nil
+
+			}
+		}
+
+	case "response_edit_screen":
+		var cmd tea.Cmd
+
+		switch msg := msg.(type) {
+		case tea.KeyMsg:
+			switch msg.String() {
+			case "esc":
+				m.selected_screen = "prompt_response_screen"
+				return m, nil
+
+			case "enter":
+				m.response_code_text = m.response_code_textInput.Value()
+				m.selected_screen = "prompt_response_screen"
+				return m, nil
+			}
+
+			m.response_code_textInput, cmd = m.response_code_textInput.Update(msg)
+			return m, cmd
+		}
+	}
+
+	return m, nil
 }
 
 func (m model) View() string {
-	// The header
-	s := "Your prompt..\n\n"
 
-	s += m.textarea.View()
+	switch m.selected_screen {
+	case "prompt_screen":
+		// The header
+		s := "Your prompt..\n\n"
 
-	if m.prompting {
+		s += m.textarea.View()
+
+		if m.prompting {
+			s += "\n\n"
+			s += "You entered: " + m.textarea.Value() + "\n"
+		}
+
+		// The footer
 		s += "\n\n"
-		s += "You entered: " + m.textarea.Value() + "\n"
+		s += "\n(ctrl+s to send) / (ctrl+c to quit)\n"
+
+		// Send the UI for rendering
+		return s
+
+	case "prompt_response_screen":
+		s := "Your prompt response..\n\n"
+
+		s += "> " + m.response_code_text
+
+		// The footer
+		s += "\n\n"
+		s += "\n(enter to run code) / (e to explain code) / (r to redo prompt) / (m to edit response code) / (ctrl+c to quit) \n"
+		return s
+
+	case "response_edit_screen":
+		s := "Edit the response code\n\n"
+
+		s += m.response_code_textInput.View()
+
+		// The footer
+		s += "\n\n"
+		s += "\n(enter to save) / (esc  to go back) / (ctrl+c to quit) \n"
+		return s
+
+	default:
+		return ""
+
 	}
 
-	// The footer
-	s += "\n\n"
-	s += "\n(ctrl+c to quit) / (ctrl+s to send)\n"
-
-	// Send the UI for rendering
-	return s
 }
