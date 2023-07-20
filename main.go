@@ -24,7 +24,7 @@ type model struct {
 	err                     error
 	prompting               bool
 	selected_screen         string
-	response_code_text      string
+	response_code_text      string // response to the prompt as code
 	response_code_textInput textinput.Model
 }
 
@@ -97,7 +97,7 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 			switch msg.String() {
 			case "enter":
 				return m, tea.Quit
-			case "r":
+			case "esc":
 				m.textarea.Focus()
 				m.textarea.SetValue("")
 				m.selected_screen = "prompt_screen"
@@ -163,7 +163,7 @@ func (m model) View() string {
 
 		// The footer
 		s += "\n\n"
-		s += "\n(enter to run code) / (e to explain code) / (r to redo prompt) / (m to edit response code) / (ctrl+c to quit) \n"
+		s += "\n(enter to run code) / (e to explain code)  / (m to edit response code) / (esc to go back to prompt) / (ctrl+c to quit) \n"
 		return s
 
 	case "response_edit_screen":
