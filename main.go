@@ -8,7 +8,10 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/glamour"
+	"github.com/charmbracelet/lipgloss"
 )
 
 func main() {
@@ -33,15 +36,16 @@ type help_keymap struct {
 }
 
 type model struct {
-	textarea                 textarea.Model
-	prompt_screen_err        string
-	prompting                bool
-	selected_screen          string
-	response_code_text       string // response to the prompt as code
-	response_code_textInput  textinput.Model
-	help                     help.Model
-	help_keymap              help_keymap
-	command_explanation_text string
+	textarea                    textarea.Model
+	prompt_screen_err           string
+	prompting                   bool
+	selected_screen             string
+	response_code_text          string // response to the prompt as code
+	response_code_textInput     textinput.Model
+	help                        help.Model
+	help_keymap                 help_keymap
+	command_explanation_text    string
+	explanation_result_viewport viewport.Model
 }
 
 func initialModel() model {
@@ -56,14 +60,22 @@ func initialModel() model {
 	ti2.CharLimit = 156
 	ti2.Width = 0
 
+	vp := viewport.New(78, 20)
+
+	vp.Style = lipgloss.NewStyle().
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("62")).
+		PaddingRight(2)
+
 	return model{
-		textarea:                 ti,
-		prompt_screen_err:        "",
-		selected_screen:          "prompt_screen",
-		response_code_text:       `say "hello potato"`,
-		response_code_textInput:  ti2,
-		command_explanation_text: "",
-		help:                     help.New(),
+		textarea:                    ti,
+		prompt_screen_err:           "",
+		selected_screen:             "prompt_screen",
+		response_code_text:          `say "hello potato"`,
+		response_code_textInput:     ti2,
+		command_explanation_text:    "",
+		explanation_result_viewport: vp,
+		help:                        help.New(),
 		help_keymap: help_keymap{
 			start: key.NewBinding(
 				key.WithKeys("ctrl+s"),
@@ -152,6 +164,8 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(cmds...)
 
 	case "prompt_response_screen":
+		var cmd tea.Cmd
+
 		switch msg := msg.(type) {
 		case tea.KeyMsg:
 			switch {
@@ -160,7 +174,46 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 				return m, tea.Quit
 
 			case key.Matches(msg, m.help_keymap.explain):
-				m.command_explanation_text = "It says hello to the potato 🥔"
+				m.command_explanation_text = `
+# Hello, World!
+
+## This is a test This is a testThis is a testThis is a testThis is a test
+
+[link](https://example.com)
+
+- list item 1
+- list item 2
+- list item 3
+- list item 4
+	- list item 1
+	- list item 2
+	- list item 3
+	- list item 4
+
+> This is a blockquote
+> This is a blockquote
+> This is a blockquote
+
+This is a test This is a testThis is a testThis is a testThis is a test
+This is a test This is a testThis is a testThis is a testThis is a test
+
+This is a test This is a testThis is a testThis is a testThis is a test
+This is a test This is a testThis is a testThis is a testThis is a test
+
+#### This is a test This is a testThis is a testThis is a testThis is a test
+#### This is a test This is a testThis is a testThis is a testThis is a test
+
+
+				`
+
+				renderer, _ := glamour.NewTermRenderer(
+					glamour.WithAutoStyle(),
+					glamour.WithWordWrap(78),
+				)
+
+				str, _ := renderer.Render(m.command_explanation_text)
+				m.explanation_result_viewport.SetContent(str)
+
 				return m, nil
 
 			case key.Matches(msg, m.help_keymap.go_back):
@@ -173,6 +226,10 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 				m.response_code_textInput.SetValue(m.response_code_text)
 				m.selected_screen = "response_edit_screen"
 				return m, nil
+
+			default:
+				m.explanation_result_viewport, cmd = m.explanation_result_viewport.Update(msg)
+				return m, cmd
 
 			}
 		}
@@ -238,7 +295,7 @@ func (m model) View() string {
 
 		if m.command_explanation_text != "" {
 			s += "\n\n"
-			s += m.command_explanation_text
+			s += m.explanation_result_viewport.View()
 		}
 
 		// The footer
