@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
@@ -20,6 +22,10 @@ func main() {
 		fmt.Printf("Alas, there's been an error: %v", err)
 		os.Exit(1)
 	}
+
+	// when returning the command we need to output to the user screen
+	output := <-outputCh
+	fmt.Println(output)
 }
 
 type errMsg error
@@ -38,7 +44,6 @@ type help_keymap struct {
 type model struct {
 	textarea                    textarea.Model
 	prompt_screen_err           string
-	prompting                   bool
 	selected_screen             string
 	response_code_text          string // response to the prompt as code
 	response_code_viewport      viewport.Model
@@ -127,7 +132,8 @@ func (m model) Init() tea.Cmd {
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if msg, ok := msg.(tea.KeyMsg); ok {
 		if key.Matches(msg, m.help_keymap.exit) {
-			return m, tea.Quit
+			// make sure the channel is not blocking after we exit
+			return m, tea.Sequence(tea.Quit, sendOutputToChannel("Bye!"))
 		}
 
 	}
@@ -186,7 +192,8 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 			switch {
 
 			case key.Matches(msg, m.help_keymap.run):
-				return m, tea.Quit
+				m.selected_screen = "running_command_screen"
+				return m, runOnTerminal(m.response_code_text)
 
 			case key.Matches(msg, m.help_keymap.explain):
 				m.command_explanation_text = `
@@ -247,6 +254,13 @@ This is a test This is a testThis is a testThis is a testThis is a test
 				return m, cmd
 
 			}
+		}
+
+	case "running_command_screen":
+		switch msg := msg.(type) {
+		case CommandResultMsg:
+
+			return m, tea.Sequence(tea.Quit, sendOutputToChannel(msg.output))
 		}
 
 	case "response_edit_screen":
@@ -331,6 +345,11 @@ func (m model) View() string {
 		})
 		return s
 
+	case "running_command_screen":
+		s := "Running command: " + m.response_code_text + "\n\n"
+		s += "wait...\n\n"
+		return s
+
 	case "response_edit_screen":
 		s := "Edit the result command\n\n"
 
@@ -352,4 +371,37 @@ func (m model) View() string {
 
 	}
 
+}
+
+type CommandResultMsg struct {
+	output string
+}
+
+type CommandErrMsg struct {
+	err error
+}
+
+func runOnTerminal(command string) tea.Cmd {
+	return func() tea.Msg {
+		parts := strings.Fields(command)
+		c := exec.Command(parts[0], parts[1:]...)
+		output, err := c.Output()
+		if err != nil {
+			return CommandErrMsg{err: err}
+		}
+
+		return CommandResultMsg{
+			output: string(output),
+		}
+
+	}
+}
+
+var outputCh = make(chan string)
+
+func sendOutputToChannel(output string) tea.Cmd {
+	return func() tea.Msg {
+		outputCh <- output
+		return nil
+	}
 }
