@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/sashabaranov/go-openai"
 )
 
 var outputCh = make(chan string)
@@ -22,8 +24,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	output := <-outputCh
-	fmt.Println(output)
+	// output := <-outputCh
+	// fmt.Println(output)
 }
 
 type model struct {
@@ -69,7 +71,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "enter":
 			m.Quitting = true
 
-			return m, runOnTerminal("brew update")
+			m.output = fmt.Sprintf("```bash %s ```", `ffmpeg -i input.mp4 -vf "select='not(mod(n\,3))'" output.mp4`)
+
+			return m, nil
+
+			// return m, makeGPTcommandRequest()
+
+			// return m, runOnTerminal("brew update")
 			// return m, makeRequest("https://charm.sh/")
 		}
 
@@ -92,16 +100,12 @@ func (m model) View() string {
 	s := ""
 
 	if m.output != "" {
-		return fmt.Sprintf("%s\n\n%s", s, m.output)
+		return m.output
 	}
 
 	if m.Quitting {
 		s := "wait..."
 		return s
-	}
-
-	if m.output != "" {
-		return fmt.Sprintf("%s\n\n%s", s, m.output)
 	}
 
 	// footer
@@ -134,6 +138,53 @@ func makeRequest(url string) tea.Cmd {
 			text:   string(body),
 		}
 
+	}
+}
+
+type GPTRequest string
+
+func makeGPTcommandRequest() tea.Cmd {
+	return func() tea.Msg {
+
+		client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
+
+		req := openai.ChatCompletionRequest{
+			Model: openai.GPT3Dot5Turbo,
+			Messages: []openai.ChatCompletionMessage{
+				{
+					Role: openai.ChatMessageRoleSystem,
+					Content: `
+						You are a helpful command-line interpreter. You receive natural language queries
+						and you return the correspondent bash command. And only the command.
+						You have access to some information about the system you are returning the 
+						command for.
+						===
+						OS: darwin
+						ARCH: aarch64
+						CURRENT_DATE: 2023-07-21T20:43:53Z
+						===
+
+						Example:
+						USER: how to list files?
+
+						ASSISTANT:
+						ls - la`,
+				},
+			},
+		}
+
+		req.Messages = append(req.Messages, openai.ChatCompletionMessage{
+			Role:    openai.ChatMessageRoleUser,
+			Content: "how to get every third frame of a mp4 video?",
+		})
+		resp, err := client.CreateChatCompletion(context.Background(), req)
+		if err != nil {
+			fmt.Printf("ChatCompletion error: %v\n", err)
+		}
+
+		fmt.Printf("%s\n\n", resp.Choices[0].Message.Content)
+
+		return GPTRequest("ok")
 	}
 }
 

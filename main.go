@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -14,6 +15,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/sashabaranov/go-openai"
 )
 
 func main() {
@@ -28,7 +30,19 @@ func main() {
 	fmt.Println(output)
 }
 
-type errMsg error
+type model struct {
+	textarea                    textarea.Model
+	prompt_screen_err           string
+	is_making_gpt_request       bool
+	selected_screen             string
+	response_code_text          string // response to the prompt as code
+	response_code_viewport      viewport.Model
+	response_code_textInput     textinput.Model
+	help                        help.Model
+	help_keymap                 help_keymap
+	command_explanation_text    string
+	explanation_result_viewport viewport.Model
+}
 
 type help_keymap struct {
 	start   key.Binding
@@ -39,19 +53,6 @@ type help_keymap struct {
 	copy    key.Binding
 	go_back key.Binding
 	exit    key.Binding
-}
-
-type model struct {
-	textarea                    textarea.Model
-	prompt_screen_err           string
-	selected_screen             string
-	response_code_text          string // response to the prompt as code
-	response_code_viewport      viewport.Model
-	response_code_textInput     textinput.Model
-	help                        help.Model
-	help_keymap                 help_keymap
-	command_explanation_text    string
-	explanation_result_viewport viewport.Model
 }
 
 func initialModel() model {
@@ -72,7 +73,7 @@ func initialModel() model {
 		BorderForeground(lipgloss.Color("62")).
 		PaddingRight(2)
 
-	vp2 := viewport.New(100, 5)
+	vp2 := viewport.New(100, 7)
 	vp2.Style = lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("62"))
@@ -81,7 +82,8 @@ func initialModel() model {
 		textarea:                    ti,
 		prompt_screen_err:           "",
 		selected_screen:             "prompt_screen",
-		response_code_text:          `say "hello potato"`,
+		is_making_gpt_request:       false,
+		response_code_text:          "",
 		response_code_textInput:     ti2,
 		response_code_viewport:      vp2,
 		command_explanation_text:    "",
@@ -125,7 +127,7 @@ func initialModel() model {
 }
 
 func (m model) Init() tea.Cmd {
-	// Just return `nil`, which means "no I/O right now, please."
+	// I/O we want to perform right as the program is starting
 	return textarea.Blink
 }
 
@@ -149,6 +151,27 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 
 		switch msg := msg.(type) {
+
+		case GPTcommandResult:
+
+			m.response_code_text = msg.content
+
+			renderer, _ := glamour.NewTermRenderer(
+				glamour.WithAutoStyle(),
+				// glamour.WithWordWrap(20),
+			)
+
+			// str, _ := renderer.Render(m.response_code_text)
+			str, _ := renderer.Render(fmt.Sprintf("```bash\n%s\n```", m.response_code_text))
+			// str, _ := renderer.Render(fmt.Sprintf("```bash\n%s\n```", m.response_code_text))
+			m.response_code_viewport.SetContent(str)
+
+			m.selected_screen = "prompt_response_screen"
+
+			m.is_making_gpt_request = false
+
+			return m, nil
+
 		case tea.KeyMsg:
 			switch {
 
@@ -159,17 +182,9 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 					return m, nil
 				}
 
-				renderer, _ := glamour.NewTermRenderer(
-					glamour.WithAutoStyle(),
-					// glamour.WithWordWrap(20),
-				)
+				m.is_making_gpt_request = true
 
-				str, _ := renderer.Render(m.response_code_text)
-				m.response_code_viewport.SetContent(str)
-
-				m.selected_screen = "prompt_response_screen"
-
-				return m, nil
+				return m, makeGPTcommandRequest(m.textarea.Value())
 
 			default:
 				if !m.textarea.Focused() {
@@ -309,6 +324,11 @@ func (m model) View() string {
 			s += m.prompt_screen_err
 		}
 
+		if m.is_making_gpt_request {
+			s += "\n\n"
+			s += "wait..."
+		}
+
 		// The footer
 		s += "\n\n"
 		s += m.help.FullHelpView([][]key.Binding{
@@ -403,5 +423,66 @@ func sendOutputToChannel(output string) tea.Cmd {
 	return func() tea.Msg {
 		outputCh <- output
 		return nil
+	}
+}
+
+type GPTcommandResult struct {
+	content string
+}
+
+type GPTcommandError struct {
+	err error
+}
+
+func makeGPTcommandRequest(prompt string) tea.Cmd {
+	return func() tea.Msg {
+
+		client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
+
+		req := openai.ChatCompletionRequest{
+			Model: openai.GPT3Dot5Turbo,
+			Messages: []openai.ChatCompletionMessage{
+				{
+					Role: openai.ChatMessageRoleSystem,
+					Content: `
+						You are a helpful command-line interpreter. You receive natural language queries
+						and you return the correspondent bash command. And only the command.
+						DO NOT RETURN ANY EXPLANATION OR INSTRUCTION. ONLY RETURN THE COMMAND!
+						You have access to some information about the system you are returning the
+						command for.
+						===
+						OS: darwin
+						ARCH: aarch64
+						CURRENT_DATE: 2023-07-21T20:43:53Z
+						===
+
+						Example:
+						USER: how to list files?
+
+						ASSISTANT:
+						ls - la`,
+				},
+			},
+		}
+
+		req.Messages = append(req.Messages, openai.ChatCompletionMessage{
+			Role:    openai.ChatMessageRoleUser,
+			Content: prompt,
+		})
+		resp, err := client.CreateChatCompletion(context.Background(), req)
+		if err != nil {
+			return GPTcommandError{err: err}
+
+		}
+
+		fmt.Printf("%s\n\n", resp.Choices[0].Message.Content)
+
+		return GPTcommandResult{
+			content: resp.Choices[0].Message.Content,
+		}
+
+		// return GPTcommandResult{
+		// 	content: `ffmpeg -i input.mp4 -vf "select='not(mod(n\,3))'" output.mp4`,
+		// }
 	}
 }
