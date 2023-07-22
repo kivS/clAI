@@ -31,17 +31,18 @@ func main() {
 }
 
 type model struct {
-	textarea                    textarea.Model
-	prompt_screen_err           string
-	is_making_gpt_request       bool
-	selected_screen             string
-	response_code_text          string // response to the prompt as code
-	response_code_viewport      viewport.Model
-	response_code_textInput     textinput.Model
-	help                        help.Model
-	help_keymap                 help_keymap
-	command_explanation_text    string
-	explanation_result_viewport viewport.Model
+	textarea                          textarea.Model
+	prompt_screen_err                 string
+	is_making_gpt_code_request        bool
+	selected_screen                   string
+	response_code_text                string // response to the prompt as code
+	response_code_viewport            viewport.Model
+	response_code_textInput           textinput.Model
+	help                              help.Model
+	help_keymap                       help_keymap
+	command_explanation_text          string
+	is_making_gpt_explanation_request bool
+	explanation_result_viewport       viewport.Model
 }
 
 type help_keymap struct {
@@ -58,6 +59,7 @@ type help_keymap struct {
 func initialModel() model {
 	ti := textarea.New()
 	ti.ShowLineNumbers = false
+	ti.SetWidth(60)
 	ti.Placeholder = "How to..."
 
 	ti.Focus()
@@ -67,7 +69,7 @@ func initialModel() model {
 	ti2.CharLimit = 156
 	ti2.Width = 0
 
-	vp := viewport.New(78, 20)
+	vp := viewport.New(78, 10)
 	vp.Style = lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("62")).
@@ -79,16 +81,17 @@ func initialModel() model {
 		BorderForeground(lipgloss.Color("62"))
 
 	return model{
-		textarea:                    ti,
-		prompt_screen_err:           "",
-		selected_screen:             "prompt_screen",
-		is_making_gpt_request:       false,
-		response_code_text:          "",
-		response_code_textInput:     ti2,
-		response_code_viewport:      vp2,
-		command_explanation_text:    "",
-		explanation_result_viewport: vp,
-		help:                        help.New(),
+		textarea:                          ti,
+		prompt_screen_err:                 "",
+		selected_screen:                   "prompt_screen",
+		is_making_gpt_code_request:        false,
+		response_code_text:                "",
+		response_code_textInput:           ti2,
+		response_code_viewport:            vp2,
+		command_explanation_text:          "",
+		explanation_result_viewport:       vp,
+		is_making_gpt_explanation_request: false,
+		help:                              help.New(),
 		help_keymap: help_keymap{
 			start: key.NewBinding(
 				key.WithKeys("ctrl+s"),
@@ -161,14 +164,13 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 				// glamour.WithWordWrap(20),
 			)
 
-			// str, _ := renderer.Render(m.response_code_text)
 			str, _ := renderer.Render(fmt.Sprintf("```bash\n%s\n```", m.response_code_text))
-			// str, _ := renderer.Render(fmt.Sprintf("```bash\n%s\n```", m.response_code_text))
+
 			m.response_code_viewport.SetContent(str)
 
 			m.selected_screen = "prompt_response_screen"
 
-			m.is_making_gpt_request = false
+			m.is_making_gpt_code_request = false
 
 			return m, nil
 
@@ -182,7 +184,7 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 					return m, nil
 				}
 
-				m.is_making_gpt_request = true
+				m.is_making_gpt_code_request = true
 
 				return m, makeGPTcommandRequest(m.textarea.Value())
 
@@ -203,6 +205,23 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 
 		switch msg := msg.(type) {
+
+		case GPTexplanationResult:
+
+			m.command_explanation_text = msg.content
+
+			renderer, _ := glamour.NewTermRenderer(
+				glamour.WithAutoStyle(),
+				// glamour.WithWordWrap(78),
+			)
+
+			str, _ := renderer.Render(m.command_explanation_text)
+			m.explanation_result_viewport.SetContent(str)
+
+			m.is_making_gpt_explanation_request = false
+
+			return m, nil
+
 		case tea.KeyMsg:
 			switch {
 
@@ -211,47 +230,10 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 				return m, runOnTerminal(m.response_code_text)
 
 			case key.Matches(msg, m.help_keymap.explain):
-				m.command_explanation_text = `
-# Hello, World!
 
-## This is a test This is a testThis is a testThis is a testThis is a test
+				m.is_making_gpt_explanation_request = true
 
-[link](https://example.com)
-
-- list item 1
-- list item 2
-- list item 3
-- list item 4
-	- list item 1
-	- list item 2
-	- list item 3
-	- list item 4
-
-> This is a blockquote
-> This is a blockquote
-> This is a blockquote
-
-This is a test This is a testThis is a testThis is a testThis is a test
-This is a test This is a testThis is a testThis is a testThis is a test
-
-This is a test This is a testThis is a testThis is a testThis is a test
-This is a test This is a testThis is a testThis is a testThis is a test
-
-#### This is a test This is a testThis is a testThis is a testThis is a test
-#### This is a test This is a testThis is a testThis is a testThis is a test
-
-
-				`
-
-				renderer, _ := glamour.NewTermRenderer(
-					glamour.WithAutoStyle(),
-					glamour.WithWordWrap(78),
-				)
-
-				str, _ := renderer.Render(m.command_explanation_text)
-				m.explanation_result_viewport.SetContent(str)
-
-				return m, nil
+				return m, makeGPTexplanationRequest(m.response_code_text)
 
 			case key.Matches(msg, m.help_keymap.go_back):
 				m.textarea.Focus()
@@ -324,7 +306,7 @@ func (m model) View() string {
 			s += m.prompt_screen_err
 		}
 
-		if m.is_making_gpt_request {
+		if m.is_making_gpt_code_request {
 			s += "\n\n"
 			s += "wait..."
 		}
@@ -346,7 +328,12 @@ func (m model) View() string {
 
 		s += m.response_code_viewport.View()
 
-		if m.command_explanation_text != "" {
+		if m.is_making_gpt_explanation_request {
+			s += "\n\n"
+			s += "Loading explanation..."
+		}
+
+		if m.command_explanation_text != "" && !m.is_making_gpt_explanation_request {
 			s += "\n\n"
 			s += m.explanation_result_viewport.View()
 		}
@@ -475,7 +462,7 @@ func makeGPTcommandRequest(prompt string) tea.Cmd {
 
 		}
 
-		fmt.Printf("%s\n\n", resp.Choices[0].Message.Content)
+		// fmt.Printf("%s\n\n", resp.Choices[0].Message.Content)
 
 		return GPTcommandResult{
 			content: resp.Choices[0].Message.Content,
@@ -484,5 +471,51 @@ func makeGPTcommandRequest(prompt string) tea.Cmd {
 		// return GPTcommandResult{
 		// 	content: `ffmpeg -i input.mp4 -vf "select='not(mod(n\,3))'" output.mp4`,
 		// }
+	}
+}
+
+type GPTexplanationResult struct {
+	content string
+}
+
+type GPTexplanationError struct {
+	err error
+}
+
+func makeGPTexplanationRequest(code string) tea.Cmd {
+	return func() tea.Msg {
+		client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
+
+		req := openai.ChatCompletionRequest{
+			Model: openai.GPT3Dot5Turbo,
+			Messages: []openai.ChatCompletionMessage{
+				{
+					Role: openai.ChatMessageRoleSystem,
+					Content: `
+						You are a helpful command-line interpreter. You receive a bash command and 
+						you return an explanation for it. And only the explanation.
+						Keep the answers simple, concise and short.
+						Explain the different parts of the command in a markdown list, each item is a different piece of the command or argument.
+					`,
+				},
+			},
+		}
+
+		req.Messages = append(req.Messages, openai.ChatCompletionMessage{
+			Role:    openai.ChatMessageRoleUser,
+			Content: code,
+		})
+		resp, err := client.CreateChatCompletion(context.Background(), req)
+		if err != nil {
+			return GPTexplanationError{err: err}
+
+		}
+
+		// fmt.Printf("%s\n\n", resp.Choices[0].Message.Content)
+
+		return GPTexplanationResult{
+			content: resp.Choices[0].Message.Content,
+		}
+
 	}
 }

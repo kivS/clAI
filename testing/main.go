@@ -10,7 +10,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/glamour"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/sashabaranov/go-openai"
 )
 
@@ -33,6 +36,7 @@ type model struct {
 	text     string
 	status   int
 	output   string
+	viewport viewport.Model
 }
 
 type httpMsg struct {
@@ -48,10 +52,26 @@ type CommandMsg struct {
 
 func initialModel() model {
 
+	vp := viewport.New(100, 7)
+	vp.Style = lipgloss.NewStyle().
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("62"))
+
+	renderer, _ := glamour.NewTermRenderer(
+		glamour.WithAutoStyle(),
+		// glamour.WithWordWrap(20),
+	)
+
+	// str, _ := renderer.Render(fmt.Sprintf("```bash\n%s\n```", `ls -la`))
+	str, _ := renderer.Render(fmt.Sprintf("```console\n%s\n```", `ffmpeg -i input.mp4 -vf "select='not(mod(n\,3))'" output.mp4`))
+	// str, _ := renderer.Render(fmt.Sprintf("```python\n%s\n```", `import os; os.system("ffmpeg -i input.mp4 -vf 'select=\\'not(mod(n\\,3))\\'' output.mp4")`))
+	vp.SetContent(str)
+
 	return model{
 		Quitting: false,
 		text:     "",
 		status:   0,
+		viewport: vp,
 		output:   "",
 	}
 }
@@ -70,8 +90,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "enter":
 			m.Quitting = true
-
-			m.output = fmt.Sprintf("```bash %s ```", `ffmpeg -i input.mp4 -vf "select='not(mod(n\,3))'" output.mp4`)
 
 			return m, nil
 
@@ -98,6 +116,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m model) View() string {
 
 	s := ""
+
+	s += m.viewport.View()
 
 	if m.output != "" {
 		return m.output
