@@ -34,6 +34,7 @@ type model struct {
 	prompt_screen_err                 string
 	is_making_gpt_code_request        bool
 	selected_screen                   string
+	prompt_response_screen_err        string
 	response_code_text                string // chatGPT response to the prompt as markdown code
 	response_code_viewport            viewport.Model
 	response_code_textInput           textinput.Model
@@ -83,6 +84,7 @@ func initialModel() model {
 		prompt_screen_err:                 "",
 		selected_screen:                   "prompt_screen",
 		is_making_gpt_code_request:        false,
+		prompt_response_screen_err:        "",
 		response_code_text:                "",
 		response_code_textInput:           response_code_textInput,
 		response_code_viewport:            response_code_viewport,
@@ -172,6 +174,11 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 
 			return m, nil
 
+		case GPTcommandError:
+			m.is_making_gpt_code_request = false
+			m.prompt_screen_err = "❌ " + msg.err.Error()
+			return m, nil
+
 		case tea.KeyMsg:
 			switch {
 
@@ -220,6 +227,10 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 
 			return m, nil
 
+		case GPTexplanationError:
+			m.is_making_gpt_explanation_request = false
+			m.prompt_response_screen_err = "❌ " + msg.err.Error()
+
 		case tea.KeyMsg:
 			switch {
 
@@ -238,6 +249,7 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 				m.prompt_textarea.SetValue("")
 				m.response_code_text = ""
 				m.command_explanation_text = ""
+				m.prompt_response_screen_err = ""
 				m.selected_screen = "prompt_screen"
 				return m, nil
 
@@ -327,6 +339,11 @@ func (m model) View() string {
 		s := "Result\n"
 
 		s += m.response_code_viewport.View()
+
+		if m.prompt_response_screen_err != "" {
+			s += "\n\n"
+			s += m.prompt_response_screen_err
+		}
 
 		if m.is_making_gpt_explanation_request {
 			s += "\n\n"
@@ -469,6 +486,9 @@ func makeGPTcommandRequest(prompt string) tea.Cmd {
 
 		// debug
 		time.Sleep(1 * time.Second)
+
+		// return GPTcommandError{err: fmt.Errorf("potato is not hot!")}
+
 		return GPTcommandResult{
 			content: `ffmpeg -i input.mp4 -vf "select='not(mod(n\,3))'" output.mp4`,
 		}
@@ -518,6 +538,9 @@ func makeGPTexplanationRequest(code string) tea.Cmd {
 
 		// debug
 		time.Sleep(1 * time.Second)
+
+		return GPTexplanationError{err: fmt.Errorf("potato is not so hot!")}
+
 		return GPTexplanationResult{
 			content: `
 - ffmpeg: the command
