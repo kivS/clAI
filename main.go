@@ -466,7 +466,7 @@ func runOnTerminal(command string) tea.Cmd {
 		// time.Sleep(1 * time.Second)
 
 		if err != nil {
-			return RuOnTerminalErrorMsg{err: fmt.Errorf(stdout.String())}
+			return RuOnTerminalErrorMsg{err: fmt.Errorf(stderr.String())}
 		}
 
 		return RuOnTerminalResultMsg{

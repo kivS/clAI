@@ -227,7 +227,8 @@ func runOnTerminal(command string) tea.Cmd {
 	return func() tea.Msg {
 		// command = "find . -name *.go | xargs wc -l"
 		// command = `find . -type f -print0 | xargs -0 stat -f "%m %N" | sort -rn | head -n 10 | cut -d" " -f2-`
-		command = `find . -name "*.gif" -type f -exec stat -f "%Sm %N" {} \; | sort -nr | awk '{print $2}'`
+		// command = `find . -name "*.gif" -type f -exec stat -f "%Sm %N" {} \; | sort -nr | awk '{print $2}'`
+		command = `find . -type f -access +182 -print`
 
 		// command = strings.ReplaceAll(command, "\"", "")
 
