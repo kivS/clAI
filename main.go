@@ -1,11 +1,11 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
@@ -15,7 +15,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/sashabaranov/go-openai"
 )
 
 func main() {
@@ -31,7 +30,7 @@ func main() {
 }
 
 type model struct {
-	textarea                          textarea.Model
+	prompt_textarea                   textarea.Model
 	prompt_screen_err                 string
 	is_making_gpt_code_request        bool
 	selected_screen                   string
@@ -57,12 +56,11 @@ type help_keymap struct {
 }
 
 func initialModel() model {
-	ti := textarea.New()
-	ti.ShowLineNumbers = false
-	ti.SetWidth(60)
-	ti.Placeholder = "How to..."
-
-	ti.Focus()
+	prompt_textarea := textarea.New()
+	prompt_textarea.ShowLineNumbers = false
+	prompt_textarea.SetWidth(60)
+	prompt_textarea.Placeholder = "How to..."
+	prompt_textarea.Focus()
 
 	ti2 := textinput.New()
 	ti2.Focus()
@@ -81,7 +79,7 @@ func initialModel() model {
 		BorderForeground(lipgloss.Color("62"))
 
 	return model{
-		textarea:                          ti,
+		prompt_textarea:                   prompt_textarea,
 		prompt_screen_err:                 "",
 		selected_screen:                   "prompt_screen",
 		is_making_gpt_code_request:        false,
@@ -179,25 +177,25 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 
 			case key.Matches(msg, m.help_keymap.start):
 
-				if m.textarea.Value() == "" {
+				if m.prompt_textarea.Value() == "" {
 					m.prompt_screen_err = "❌ Prompt cannot be empty"
 					return m, nil
 				}
 
 				m.is_making_gpt_code_request = true
 
-				return m, makeGPTcommandRequest(m.textarea.Value())
+				return m, makeGPTcommandRequest(m.prompt_textarea.Value())
 
 			default:
-				if !m.textarea.Focused() {
-					cmd = m.textarea.Focus()
+				if !m.prompt_textarea.Focused() {
+					cmd = m.prompt_textarea.Focus()
 					cmds = append(cmds, cmd)
 				}
 				m.prompt_screen_err = ""
 			}
 		}
 
-		m.textarea, cmd = m.textarea.Update(msg)
+		m.prompt_textarea, cmd = m.prompt_textarea.Update(msg)
 		cmds = append(cmds, cmd)
 		return m, tea.Batch(cmds...)
 
@@ -212,7 +210,7 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 
 			renderer, _ := glamour.NewTermRenderer(
 				glamour.WithAutoStyle(),
-				// glamour.WithWordWrap(78),
+				glamour.WithWordWrap(60),
 			)
 
 			str, _ := renderer.Render(m.command_explanation_text)
@@ -236,8 +234,8 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 				return m, makeGPTexplanationRequest(m.response_code_text)
 
 			case key.Matches(msg, m.help_keymap.go_back):
-				m.textarea.Focus()
-				m.textarea.SetValue("")
+				m.prompt_textarea.Focus()
+				m.prompt_textarea.SetValue("")
 				m.selected_screen = "prompt_screen"
 				return m, nil
 
@@ -299,7 +297,7 @@ func (m model) View() string {
 		// The header
 		s := "Your prompt\n\n"
 
-		s += m.textarea.View()
+		s += m.prompt_textarea.View()
 
 		if m.prompt_screen_err != "" {
 			s += "\n\n"
@@ -424,53 +422,53 @@ type GPTcommandError struct {
 func makeGPTcommandRequest(prompt string) tea.Cmd {
 	return func() tea.Msg {
 
-		client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
+		// client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
 
-		req := openai.ChatCompletionRequest{
-			Model: openai.GPT3Dot5Turbo,
-			Messages: []openai.ChatCompletionMessage{
-				{
-					Role: openai.ChatMessageRoleSystem,
-					Content: `
-						You are a helpful command-line interpreter. You receive natural language queries
-						and you return the correspondent bash command. And only the command.
-						DO NOT RETURN ANY EXPLANATION OR INSTRUCTION. ONLY RETURN THE COMMAND!
-						You have access to some information about the system you are returning the
-						command for.
-						===
-						OS: darwin
-						ARCH: aarch64
-						CURRENT_DATE: 2023-07-21T20:43:53Z
-						===
+		// req := openai.ChatCompletionRequest{
+		// 	Model: openai.GPT3Dot5Turbo,
+		// 	Messages: []openai.ChatCompletionMessage{
+		// 		{
+		// 			Role: openai.ChatMessageRoleSystem,
+		// 			Content: `
+		// 				You are a helpful command-line interpreter. You receive natural language queries
+		// 				and you return the correspondent bash command. And only the command.
+		// 				DO NOT RETURN ANY EXPLANATION OR INSTRUCTION. ONLY RETURN THE COMMAND!
+		// 				You have access to some information about the system you are returning the
+		// 				command for.
+		// 				===
+		// 				OS: darwin
+		// 				ARCH: aarch64
+		// 				CURRENT_DATE: 2023-07-21T20:43:53Z
+		// 				===
 
-						Example:
-						USER: how to list files?
+		// 				Example:
+		// 				USER: how to list files?
 
-						ASSISTANT:
-						ls - la`,
-				},
-			},
-		}
+		// 				ASSISTANT:
+		// 				ls - la`,
+		// 		},
+		// 	},
+		// }
 
-		req.Messages = append(req.Messages, openai.ChatCompletionMessage{
-			Role:    openai.ChatMessageRoleUser,
-			Content: prompt,
-		})
-		resp, err := client.CreateChatCompletion(context.Background(), req)
-		if err != nil {
-			return GPTcommandError{err: err}
+		// req.Messages = append(req.Messages, openai.ChatCompletionMessage{
+		// 	Role:    openai.ChatMessageRoleUser,
+		// 	Content: prompt,
+		// })
+		// resp, err := client.CreateChatCompletion(context.Background(), req)
+		// if err != nil {
+		// 	return GPTcommandError{err: err}
 
-		}
-
-		// fmt.Printf("%s\n\n", resp.Choices[0].Message.Content)
-
-		return GPTcommandResult{
-			content: resp.Choices[0].Message.Content,
-		}
+		// }
 
 		// return GPTcommandResult{
-		// 	content: `ffmpeg -i input.mp4 -vf "select='not(mod(n\,3))'" output.mp4`,
+		// 	content: resp.Choices[0].Message.Content,
 		// }
+
+		// debug
+		time.Sleep(1 * time.Second)
+		return GPTcommandResult{
+			content: `ffmpeg -i input.mp4 -vf "select='not(mod(n\,3))'" output.mp4`,
+		}
 	}
 }
 
@@ -484,37 +482,48 @@ type GPTexplanationError struct {
 
 func makeGPTexplanationRequest(code string) tea.Cmd {
 	return func() tea.Msg {
-		client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
+		// client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
 
-		req := openai.ChatCompletionRequest{
-			Model: openai.GPT3Dot5Turbo,
-			Messages: []openai.ChatCompletionMessage{
-				{
-					Role: openai.ChatMessageRoleSystem,
-					Content: `
-						You are a helpful command-line interpreter. You receive a bash command and 
-						you return an explanation for it. And only the explanation.
-						Keep the answers simple, concise and short.
-						Explain the different parts of the command in a markdown list, each item is a different piece of the command or argument.
-					`,
-				},
-			},
-		}
+		// req := openai.ChatCompletionRequest{
+		// 	Model: openai.GPT3Dot5Turbo,
+		// 	Messages: []openai.ChatCompletionMessage{
+		// 		{
+		// 			Role: openai.ChatMessageRoleSystem,
+		// 			Content: `
+		// 				You are a helpful command-line interpreter. You receive a bash command and
+		// 				you return an explanation for it. And only the explanation.
+		// 				Keep the answers simple, concise and short.
+		// 				Explain the different parts of the command in a markdown list, each item is a different piece of the command or argument.
+		// 			`,
+		// 		},
+		// 	},
+		// }
 
-		req.Messages = append(req.Messages, openai.ChatCompletionMessage{
-			Role:    openai.ChatMessageRoleUser,
-			Content: code,
-		})
-		resp, err := client.CreateChatCompletion(context.Background(), req)
-		if err != nil {
-			return GPTexplanationError{err: err}
+		// req.Messages = append(req.Messages, openai.ChatCompletionMessage{
+		// 	Role:    openai.ChatMessageRoleUser,
+		// 	Content: code,
+		// })
+		// resp, err := client.CreateChatCompletion(context.Background(), req)
+		// if err != nil {
+		// 	return GPTexplanationError{err: err}
 
-		}
+		// }
 
-		// fmt.Printf("%s\n\n", resp.Choices[0].Message.Content)
+		// return GPTexplanationResult{
+		// 	content: resp.Choices[0].Message.Content,
+		// }
 
+		// debug
+		time.Sleep(1 * time.Second)
 		return GPTexplanationResult{
-			content: resp.Choices[0].Message.Content,
+			content: `
+			- ffmpeg: the command
+			- -i: input file
+			- input.mp4: the input file
+			- -vf: video filter
+			- "select='not(mod(n\,3))'": select every third frame
+			- output.mp4: the output file
+			`,
 		}
 
 	}
