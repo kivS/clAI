@@ -35,7 +35,7 @@ type model struct {
 	prompt_screen_err                 string
 	is_making_gpt_code_request        bool
 	selected_screen                   string
-	response_code_text                string // response to the prompt as code
+	response_code_text                string // chatGPT response to the prompt as markdown code
 	response_code_viewport            viewport.Model
 	response_code_textInput           textinput.Model
 	help                              help.Model
