@@ -236,6 +236,8 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 			case key.Matches(msg, m.help_keymap.go_back):
 				m.prompt_textarea.Focus()
 				m.prompt_textarea.SetValue("")
+				m.response_code_text = ""
+				m.command_explanation_text = ""
 				m.selected_screen = "prompt_screen"
 				return m, nil
 
