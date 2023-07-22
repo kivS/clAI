@@ -95,13 +95,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 
 		case "enter":
-			m.Quitting = true
+			// m.Quitting = true
 
-			return m, nil
+			// return m, nil
 
 			// return m, makeGPTcommandRequest()
 
-			// return m, runOnTerminal("brew update")
+			return m, runOnTerminal("")
 			// return m, makeRequest("https://charm.sh/")
 		}
 
@@ -128,7 +128,7 @@ func (m model) View() string {
 
 	s := ""
 
-	s += m.spinner.View()
+	// s += m.spinner.View()
 
 	s += "\n\n"
 
@@ -225,17 +225,28 @@ func makeGPTcommandRequest() tea.Cmd {
 
 func runOnTerminal(command string) tea.Cmd {
 	return func() tea.Msg {
+		command = `find . -name "*.go"`
+
+		command = strings.ReplaceAll(command, "\"", "")
+
 		parts := strings.Fields(command)
 		c := exec.Command(parts[0], parts[1:]...) //nolint:gosec
+
+		// c := exec.Command("find", ".", "-name", "*.go")
+		// c := exec.Command("ls", "-la")
+		// c := exec.Command("pwd")
 		output, err := c.Output()
 		if err != nil {
-			// fmt.Print(err)
-			return CommandMsg{err: err}
+			fmt.Print(err)
+			// return CommandMsg{err: err}
 		}
 
-		return CommandMsg{
-			output: string(output),
-		}
+		fmt.Println(string(output))
+
+		return nil
+		// return CommandMsg{
+		// 	output: string(output),
+		// }
 
 	}
 }

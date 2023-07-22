@@ -1,11 +1,11 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"strings"
-	"time"
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
@@ -16,6 +16,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/sashabaranov/go-openai"
 )
 
 func main() {
@@ -251,6 +252,7 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 
 			case key.Matches(msg, m.help_keymap.run):
 				m.selected_screen = "running_command_screen"
+
 				return m, runOnTerminal(m.response_code_text)
 
 			case key.Matches(msg, m.help_keymap.explain):
@@ -450,13 +452,18 @@ type RuOnTerminalErrorMsg struct {
 
 func runOnTerminal(command string) tea.Cmd {
 	return func() tea.Msg {
+
+		// it seems that running commands with " is not working and break silently?  so let's remove them
+		command = strings.ReplaceAll(command, "\"", "")
+
 		parts := strings.Fields(command)
+
 		c := exec.Command(parts[0], parts[1:]...)
 
 		output, err := c.Output()
 
 		// debug
-		time.Sleep(1 * time.Second)
+		// time.Sleep(1 * time.Second)
 
 		if err != nil {
 			return RuOnTerminalErrorMsg{err: err}
@@ -489,56 +496,54 @@ type GPTcommandError struct {
 func makeGPTcommandRequest(prompt string) tea.Cmd {
 	return func() tea.Msg {
 
-		// client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
+		client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
 
-		// req := openai.ChatCompletionRequest{
-		// 	Model: openai.GPT3Dot5Turbo,
-		// 	Messages: []openai.ChatCompletionMessage{
-		// 		{
-		// 			Role: openai.ChatMessageRoleSystem,
-		// 			Content: `
-		// 				You are a helpful command-line interpreter. You receive natural language queries
-		// 				and you return the correspondent bash command. And only the command.
-		// 				DO NOT RETURN ANY EXPLANATION OR INSTRUCTION. ONLY RETURN THE COMMAND!
-		// 				You have access to some information about the system you are returning the
-		// 				command for.
-		// 				===
-		// 				OS: darwin
-		// 				ARCH: aarch64
-		// 				CURRENT_DATE: 2023-07-21T20:43:53Z
-		// 				===
+		req := openai.ChatCompletionRequest{
+			Model: openai.GPT3Dot5Turbo,
+			Messages: []openai.ChatCompletionMessage{
+				{
+					Role: openai.ChatMessageRoleSystem,
+					Content: `
+						You are a helpful command-line interpreter. You receive natural language queries
+						and you return the correspondent bash command. And only the command.
+						DO NOT RETURN ANY EXPLANATION OR INSTRUCTION. ONLY RETURN THE COMMAND!
+						You have access to some information about the system you are returning the
+						command for.
+						===
+						OS: darwin
+						ARCH: aarch64
+						CURRENT_DATE: 2023-07-21T20:43:53Z
+						===
 
-		// 				Example:
-		// 				USER: how to list files?
+						Example:
+						USER: how to list files?
 
-		// 				ASSISTANT:
-		// 				ls - la`,
-		// 		},
-		// 	},
-		// }
+						ASSISTANT:
+						ls - la`,
+				},
+			},
+		}
 
-		// req.Messages = append(req.Messages, openai.ChatCompletionMessage{
-		// 	Role:    openai.ChatMessageRoleUser,
-		// 	Content: prompt,
-		// })
-		// resp, err := client.CreateChatCompletion(context.Background(), req)
-		// if err != nil {
-		// 	return GPTcommandError{err: err}
+		req.Messages = append(req.Messages, openai.ChatCompletionMessage{
+			Role:    openai.ChatMessageRoleUser,
+			Content: prompt,
+		})
+		resp, err := client.CreateChatCompletion(context.Background(), req)
+		if err != nil {
+			return GPTcommandError{err: err}
 
-		// }
-
-		// return GPTcommandResult{
-		// 	content: resp.Choices[0].Message.Content,
-		// }
-
-		// debug
-		time.Sleep(1 * time.Second)
-
-		// return GPTcommandError{err: fmt.Errorf("potato is not hot!")}
+		}
 
 		return GPTcommandResult{
-			content: `ffmpeg -i input.mp4 -vf "select='not(mod(n\,3))'" output.mp4`,
+			content: resp.Choices[0].Message.Content,
 		}
+
+		//// debug
+		// time.Sleep(1 * time.Second)
+		// return GPTcommandError{err: fmt.Errorf("potato is not hot!")}
+		// return GPTcommandResult{
+		// 	content: `ffmpeg -i input.mp4 -vf "select='not(mod(n\,3))'" output.mp4`,
+		// }
 	}
 }
 
@@ -552,52 +557,52 @@ type GPTexplanationError struct {
 
 func makeGPTexplanationRequest(code string) tea.Cmd {
 	return func() tea.Msg {
-		// client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
+		client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
 
-		// req := openai.ChatCompletionRequest{
-		// 	Model: openai.GPT3Dot5Turbo,
-		// 	Messages: []openai.ChatCompletionMessage{
-		// 		{
-		// 			Role: openai.ChatMessageRoleSystem,
-		// 			Content: `
-		// 				You are a helpful command-line interpreter. You receive a bash command and
-		// 				you return an explanation for it. And only the explanation.
-		// 				Keep the answers simple, concise and short.
-		// 				Explain the different parts of the command in a markdown list, each item is a different piece of the command or argument.
-		// 			`,
-		// 		},
-		// 	},
-		// }
+		req := openai.ChatCompletionRequest{
+			Model: openai.GPT3Dot5Turbo,
+			Messages: []openai.ChatCompletionMessage{
+				{
+					Role: openai.ChatMessageRoleSystem,
+					Content: `
+						You are a helpful command-line interpreter. You receive a bash command and
+						you return an explanation for it. And only the explanation.
+						Keep the answers simple, concise and short.
+						Explain the different parts of the command in a markdown list, each item is a different piece of the command or argument.
+					`,
+				},
+			},
+		}
 
-		// req.Messages = append(req.Messages, openai.ChatCompletionMessage{
-		// 	Role:    openai.ChatMessageRoleUser,
-		// 	Content: code,
-		// })
-		// resp, err := client.CreateChatCompletion(context.Background(), req)
-		// if err != nil {
-		// 	return GPTexplanationError{err: err}
+		req.Messages = append(req.Messages, openai.ChatCompletionMessage{
+			Role:    openai.ChatMessageRoleUser,
+			Content: code,
+		})
+		resp, err := client.CreateChatCompletion(context.Background(), req)
+		if err != nil {
+			return GPTexplanationError{err: err}
 
-		// }
+		}
 
-		// return GPTexplanationResult{
-		// 	content: resp.Choices[0].Message.Content,
-		// }
+		return GPTexplanationResult{
+			content: "`" + resp.Choices[0].Message.Content + "`",
+		}
 
-		// debug
-		time.Sleep(1 * time.Second)
+		//// debug
+		// time.Sleep(1 * time.Second)
 
 		// return GPTexplanationError{err: fmt.Errorf("potato is not so hot!")}
 
-		return GPTexplanationResult{
-			content: `
-- ffmpeg: the command
-- -i: input file
-- input.mp4: the input file
-- -vf: video filter
-- "select='not(mod(n\,3))'": select every third frame out of a lot of frames and you know? I like frames
-- output.mp4: the output file
-			`,
-		}
+		// 		return GPTexplanationResult{
+		// 			content: `
+		// - ffmpeg: the command
+		// - -i: input file
+		// - input.mp4: the input file
+		// - -vf: video filter
+		// - "select='not(mod(n\,3))'": select every third frame out of a lot of frames and you know? I like frames
+		// - output.mp4: the output file
+		// 			`,
+		// 		}
 
 	}
 }
