@@ -62,19 +62,19 @@ func initialModel() model {
 	prompt_textarea.Placeholder = "How to..."
 	prompt_textarea.Focus()
 
-	ti2 := textinput.New()
-	ti2.Focus()
-	ti2.CharLimit = 156
-	ti2.Width = 0
+	response_code_textInput := textinput.New()
+	response_code_textInput.Focus()
+	response_code_textInput.CharLimit = 156
+	response_code_textInput.Width = 0
 
-	vp := viewport.New(78, 10)
-	vp.Style = lipgloss.NewStyle().
+	explanation_result_viewport := viewport.New(78, 10)
+	explanation_result_viewport.Style = lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("62")).
 		PaddingRight(2)
 
-	vp2 := viewport.New(100, 7)
-	vp2.Style = lipgloss.NewStyle().
+	response_code_viewport := viewport.New(100, 7)
+	response_code_viewport.Style = lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("62"))
 
@@ -84,10 +84,10 @@ func initialModel() model {
 		selected_screen:                   "prompt_screen",
 		is_making_gpt_code_request:        false,
 		response_code_text:                "",
-		response_code_textInput:           ti2,
-		response_code_viewport:            vp2,
+		response_code_textInput:           response_code_textInput,
+		response_code_viewport:            response_code_viewport,
 		command_explanation_text:          "",
-		explanation_result_viewport:       vp,
+		explanation_result_viewport:       explanation_result_viewport,
 		is_making_gpt_explanation_request: false,
 		help:                              help.New(),
 		help_keymap: help_keymap{
@@ -101,7 +101,7 @@ func initialModel() model {
 			),
 			run: key.NewBinding(
 				key.WithKeys("enter"),
-				key.WithHelp("[ enter  ]", "Run on commandline"),
+				key.WithHelp("[ enter  ]", "Run the command"),
 			),
 			modify: key.NewBinding(
 				key.WithKeys("m"),
@@ -310,7 +310,7 @@ func (m model) View() string {
 		}
 
 		// The footer
-		s += "\n\n"
+		s += strings.Repeat("\n", 4)
 		s += m.help.FullHelpView([][]key.Binding{
 			{
 				m.help_keymap.start,
@@ -322,7 +322,7 @@ func (m model) View() string {
 		return s
 
 	case "prompt_response_screen":
-		s := "Result\n\n"
+		s := "Result\n"
 
 		s += m.response_code_viewport.View()
 
@@ -333,11 +333,12 @@ func (m model) View() string {
 
 		if m.command_explanation_text != "" && !m.is_making_gpt_explanation_request {
 			s += "\n\n"
+			s += "Explanation\n"
 			s += m.explanation_result_viewport.View()
 		}
 
 		// The footer
-		s += "\n\n"
+		s += strings.Repeat("\n", 4)
 		s += m.help.FullHelpView([][]key.Binding{
 			{
 				m.help_keymap.run,
@@ -361,7 +362,7 @@ func (m model) View() string {
 		s += m.response_code_textInput.View()
 
 		// The footer
-		s += "\n\n"
+		s += strings.Repeat("\n", 4)
 		s += m.help.FullHelpView([][]key.Binding{
 			{
 				m.help_keymap.save,
@@ -517,12 +518,12 @@ func makeGPTexplanationRequest(code string) tea.Cmd {
 		time.Sleep(1 * time.Second)
 		return GPTexplanationResult{
 			content: `
-			- ffmpeg: the command
-			- -i: input file
-			- input.mp4: the input file
-			- -vf: video filter
-			- "select='not(mod(n\,3))'": select every third frame
-			- output.mp4: the output file
+- ffmpeg: the command
+- -i: input file
+- input.mp4: the input file
+- -vf: video filter
+- "select='not(mod(n\,3))'": select every third frame out of a lot of frames and you know? I like frames
+- output.mp4: the output file
 			`,
 		}
 
