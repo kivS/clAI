@@ -38,6 +38,7 @@ type model struct {
 	response_code_text                string // chatGPT response to the prompt as markdown code
 	response_code_viewport            viewport.Model
 	response_code_textInput           textinput.Model
+	running_command_screen_err        string
 	help                              help.Model
 	help_keymap                       help_keymap
 	command_explanation_text          string
@@ -91,6 +92,7 @@ func initialModel() model {
 		command_explanation_text:          "",
 		explanation_result_viewport:       explanation_result_viewport,
 		is_making_gpt_explanation_request: false,
+		running_command_screen_err:        "",
 		help:                              help.New(),
 		help_keymap: help_keymap{
 			start: key.NewBinding(
@@ -267,9 +269,19 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 
 	case "running_command_screen":
 		switch msg := msg.(type) {
-		case CommandResultMsg:
-
+		case RuOnTerminalResultMsg:
 			return m, tea.Sequence(tea.Quit, sendOutputToChannel(msg.output))
+
+		case RuOnTerminalErrorMsg:
+			m.running_command_screen_err = "❌ " + msg.err.Error()
+			return m, nil
+
+		case tea.KeyMsg:
+			switch {
+			case key.Matches(msg, m.help_keymap.go_back):
+				m.selected_screen = "prompt_response_screen"
+				return m, nil
+			}
 		}
 
 	case "response_edit_screen":
@@ -372,7 +384,23 @@ func (m model) View() string {
 
 	case "running_command_screen":
 		s := "Running command: " + m.response_code_text + "\n\n"
-		s += "wait...\n\n"
+
+		if m.running_command_screen_err != "" {
+			s += "\n\n"
+			s += m.running_command_screen_err
+
+			// The footer
+			s += strings.Repeat("\n", 4)
+			s += m.help.FullHelpView([][]key.Binding{
+				{
+					m.help_keymap.go_back,
+					m.help_keymap.exit,
+				},
+			})
+
+		} else {
+			s += "wait...\n\n"
+		}
 		return s
 
 	case "response_edit_screen":
@@ -398,11 +426,11 @@ func (m model) View() string {
 
 }
 
-type CommandResultMsg struct {
+type RuOnTerminalResultMsg struct {
 	output string
 }
 
-type CommandErrMsg struct {
+type RuOnTerminalErrorMsg struct {
 	err error
 }
 
@@ -410,12 +438,17 @@ func runOnTerminal(command string) tea.Cmd {
 	return func() tea.Msg {
 		parts := strings.Fields(command)
 		c := exec.Command(parts[0], parts[1:]...)
+
 		output, err := c.Output()
+
+		// debug
+		// time.Sleep(1 * time.Second)
+
 		if err != nil {
-			return CommandErrMsg{err: err}
+			return RuOnTerminalErrorMsg{err: err}
 		}
 
-		return CommandResultMsg{
+		return RuOnTerminalResultMsg{
 			output: string(output),
 		}
 
