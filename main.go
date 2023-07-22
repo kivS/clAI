@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -453,24 +454,23 @@ type RuOnTerminalErrorMsg struct {
 func runOnTerminal(command string) tea.Cmd {
 	return func() tea.Msg {
 
-		// it seems that running commands with " is not working and break silently?  so let's remove them
-		command = strings.ReplaceAll(command, "\"", "")
+		c := exec.Command("bash", "-c", command)
 
-		parts := strings.Fields(command)
+		var stdout, stderr bytes.Buffer
+		c.Stdout = &stdout
+		c.Stderr = &stderr
 
-		c := exec.Command(parts[0], parts[1:]...)
-
-		output, err := c.Output()
+		err := c.Run()
 
 		// debug
 		// time.Sleep(1 * time.Second)
 
 		if err != nil {
-			return RuOnTerminalErrorMsg{err: err}
+			return RuOnTerminalErrorMsg{err: fmt.Errorf(stdout.String())}
 		}
 
 		return RuOnTerminalResultMsg{
-			output: string(output),
+			output: stdout.String(),
 		}
 
 	}

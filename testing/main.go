@@ -1,13 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"os/exec"
-	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -225,23 +225,36 @@ func makeGPTcommandRequest() tea.Cmd {
 
 func runOnTerminal(command string) tea.Cmd {
 	return func() tea.Msg {
-		command = `find . -name "*.go"`
+		// command = "find . -name *.go | xargs wc -l"
+		// command = `find . -type f -print0 | xargs -0 stat -f "%m %N" | sort -rn | head -n 10 | cut -d" " -f2-`
+		command = `find . -name "*.gif" -type f -exec stat -f "%Sm %N" {} \; | sort -nr | awk '{print $2}'`
 
-		command = strings.ReplaceAll(command, "\"", "")
+		// command = strings.ReplaceAll(command, "\"", "")
 
-		parts := strings.Fields(command)
-		c := exec.Command(parts[0], parts[1:]...) //nolint:gosec
+		// parts := strings.Fields(command)
+		// c := exec.Command(parts[0], parts[1:]...) //nolint:gosec
+		c := exec.Command("bash", "-c", command) //nolint:gosec
+
+		var stdout, stderr bytes.Buffer
+		c.Stdout = &stdout
+		c.Stderr = &stderr
+
+		err := c.Run()
+
+		fmt.Print("Err: ", err)
+		fmt.Println("\n\nstdout:", stdout.String())
+		fmt.Println("\n\nstderr:", stderr.String())
 
 		// c := exec.Command("find", ".", "-name", "*.go")
 		// c := exec.Command("ls", "-la")
 		// c := exec.Command("pwd")
-		output, err := c.Output()
-		if err != nil {
-			fmt.Print(err)
-			// return CommandMsg{err: err}
-		}
+		// output, err := c.Output()
+		// if err != nil {
+		// 	fmt.Print(err)
+		// 	// return CommandMsg{err: err}
+		// }
 
-		fmt.Println(string(output))
+		// fmt.Println(string(output))
 
 		return nil
 		// return CommandMsg{
