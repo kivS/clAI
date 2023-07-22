@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
@@ -36,6 +37,7 @@ type model struct {
 	text     string
 	status   int
 	output   string
+	spinner  spinner.Model
 	viewport viewport.Model
 }
 
@@ -67,17 +69,21 @@ func initialModel() model {
 	// str, _ := renderer.Render(fmt.Sprintf("```python\n%s\n```", `import os; os.system("ffmpeg -i input.mp4 -vf 'select=\\'not(mod(n\\,3))\\'' output.mp4")`))
 	vp.SetContent(str)
 
+	s := spinner.New()
+	s.Spinner = spinner.Moon
+
 	return model{
 		Quitting: false,
 		text:     "",
 		status:   0,
 		viewport: vp,
 		output:   "",
+		spinner:  s,
 	}
 }
 
 func (m model) Init() tea.Cmd {
-	return nil
+	return m.spinner.Tick
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -109,6 +115,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Sequence(tea.Quit, sendOutput(string(msg.output)))
 		// return m, tea.Sequence(tea.Quit, sendOutput(string(msg.output)))
 
+	default:
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, cmd
+
 	}
 	return m, nil
 }
@@ -116,6 +127,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m model) View() string {
 
 	s := ""
+
+	s += m.spinner.View()
+
+	s += "\n\n"
 
 	s += m.viewport.View()
 

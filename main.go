@@ -9,6 +9,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -30,6 +31,7 @@ func main() {
 }
 
 type model struct {
+	loading_spinner                   spinner.Model
 	prompt_textarea                   textarea.Model
 	prompt_screen_err                 string
 	is_making_gpt_code_request        bool
@@ -80,7 +82,11 @@ func initialModel() model {
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("62"))
 
+	loading_spinner := spinner.New()
+	loading_spinner.Spinner = spinner.Moon
+
 	return model{
+		loading_spinner:                   loading_spinner,
 		prompt_textarea:                   prompt_textarea,
 		prompt_screen_err:                 "",
 		selected_screen:                   "prompt_screen",
@@ -133,19 +139,26 @@ func initialModel() model {
 
 func (m model) Init() tea.Cmd {
 	// I/O we want to perform right as the program is starting
-	return textarea.Blink
+	return tea.Batch(textarea.Blink, m.loading_spinner.Tick)
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if msg, ok := msg.(tea.KeyMsg); ok {
-		if key.Matches(msg, m.help_keymap.exit) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch {
+		case key.Matches(msg, m.help_keymap.exit):
 			// make sure the channel is not blocking after we exit
 			return m, tea.Sequence(tea.Quit, sendOutputToChannel("Bye!"))
 		}
 
+	case spinner.TickMsg:
+		var cmd tea.Cmd
+		m.loading_spinner, cmd = m.loading_spinner.Update(msg)
+		return m, cmd
+
 	}
 
-	// offload update to the selected screen
+	// offload lefover update to the selected screen
 	return updateSelectedScreen(msg, m)
 }
 
@@ -280,6 +293,7 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 			switch {
 			case key.Matches(msg, m.help_keymap.go_back):
 				m.selected_screen = "prompt_response_screen"
+				m.running_command_screen_err = ""
 				return m, nil
 			}
 		}
@@ -332,7 +346,7 @@ func (m model) View() string {
 
 		if m.is_making_gpt_code_request {
 			s += "\n\n"
-			s += "wait..."
+			s += m.loading_spinner.View() + " Making request..."
 		}
 
 		// The footer
@@ -359,7 +373,7 @@ func (m model) View() string {
 
 		if m.is_making_gpt_explanation_request {
 			s += "\n\n"
-			s += "Loading explanation..."
+			s += m.loading_spinner.View() + " Loading explanation..."
 		}
 
 		if m.command_explanation_text != "" && !m.is_making_gpt_explanation_request {
@@ -399,7 +413,7 @@ func (m model) View() string {
 			})
 
 		} else {
-			s += "wait...\n\n"
+			s += m.loading_spinner.View() + " Processing...\n\n"
 		}
 		return s
 
@@ -442,7 +456,7 @@ func runOnTerminal(command string) tea.Cmd {
 		output, err := c.Output()
 
 		// debug
-		// time.Sleep(1 * time.Second)
+		time.Sleep(1 * time.Second)
 
 		if err != nil {
 			return RuOnTerminalErrorMsg{err: err}
