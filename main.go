@@ -539,7 +539,7 @@ func makeGPTexplanationRequest(code string) tea.Cmd {
 		// debug
 		time.Sleep(1 * time.Second)
 
-		return GPTexplanationError{err: fmt.Errorf("potato is not so hot!")}
+		// return GPTexplanationError{err: fmt.Errorf("potato is not so hot!")}
 
 		return GPTexplanationResult{
 			content: `
