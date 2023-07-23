@@ -22,6 +22,11 @@ var outputCh = make(chan string)
 
 func main() {
 
+	current_date := time.Now().UTC().Format("2006-01-02T15:04:05Z")
+	fmt.Println(current_date)
+
+	os.Exit(0)
+
 	p := tea.NewProgram(initialModel(), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Alas, there's been an error: %v", err)

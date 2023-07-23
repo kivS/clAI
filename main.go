@@ -6,7 +6,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
+	"text/template"
+	"time"
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
@@ -498,28 +501,45 @@ func makeGPTcommandRequest(prompt string) tea.Cmd {
 
 		client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
 
+		request_content := `
+			You are a helpful command-line interpreter. You receive natural language queries
+			and you return the correspondent bash command. And only the command.
+			DO NOT RETURN ANY EXPLANATION OR INSTRUCTION. ONLY RETURN THE COMMAND!
+			You have access to some information about the system you are returning the
+			command for.
+			===
+			OS: {{.OS}}
+			ARCH: {{.ARCH}}
+			CURRENT_DATE: {{.CURRENT_DATE}}
+			===
+			Example:
+			USER: how to list files?
+			ASSISTANT:
+			ls - la
+		`
+
+		var buf bytes.Buffer
+		t := template.Must(template.New(request_content).Parse(request_content))
+
+		err := t.Execute(&buf, map[string]string{
+			"OS":           runtime.GOOS,
+			"ARCH":         runtime.GOARCH,
+			"CURRENT_DATE": time.Now().UTC().Format("2006-01-02T15:04:05Z"),
+		})
+
+		if err != nil {
+			return GPTcommandError{err: err}
+		}
+
+		result := buf.String()
+		result = strings.ReplaceAll(result, "	", "") // remove tabs
+
 		req := openai.ChatCompletionRequest{
 			Model: openai.GPT3Dot5Turbo,
 			Messages: []openai.ChatCompletionMessage{
 				{
-					Role: openai.ChatMessageRoleSystem,
-					Content: `
-						You are a helpful command-line interpreter. You receive natural language queries
-						and you return the correspondent bash command. And only the command.
-						DO NOT RETURN ANY EXPLANATION OR INSTRUCTION. ONLY RETURN THE COMMAND!
-						You have access to some information about the system you are returning the
-						command for.
-						===
-						OS: darwin
-						ARCH: aarch64
-						CURRENT_DATE: 2023-07-21T20:43:53Z
-						===
-
-						Example:
-						USER: how to list files?
-
-						ASSISTANT:
-						ls - la`,
+					Role:    openai.ChatMessageRoleSystem,
+					Content: result,
 				},
 			},
 		}
