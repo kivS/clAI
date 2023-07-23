@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strconv"
 	"strings"
 	"text/template"
 	"time"
@@ -231,26 +232,6 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 
 		switch msg := msg.(type) {
 
-		case GPTexplanationResult:
-
-			m.command_explanation_text = msg.content
-
-			renderer, _ := glamour.NewTermRenderer(
-				glamour.WithAutoStyle(),
-				glamour.WithWordWrap(60),
-			)
-
-			str, _ := renderer.Render(m.command_explanation_text)
-			m.explanation_result_viewport.SetContent(str)
-
-			m.is_making_gpt_explanation_request = false
-
-			return m, nil
-
-		case GPTexplanationError:
-			m.is_making_gpt_explanation_request = false
-			m.prompt_response_screen_err = "❌ " + msg.err.Error()
-
 		case tea.KeyMsg:
 			switch {
 
@@ -279,21 +260,44 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 				m.selected_screen = "response_edit_screen"
 				return m, nil
 
+			case key.Matches(msg, m.help_keymap.copy):
+				return m, copyCommandToClipboard(m.response_code_text)
+
 			default:
 				m.explanation_result_viewport, cmd = m.explanation_result_viewport.Update(msg)
 				return m, cmd
 
 			}
+
+		case GPTexplanationResult:
+
+			m.command_explanation_text = msg.content
+
+			renderer, _ := glamour.NewTermRenderer(
+				glamour.WithAutoStyle(),
+				glamour.WithWordWrap(60),
+			)
+
+			str, _ := renderer.Render(m.command_explanation_text)
+			m.explanation_result_viewport.SetContent(str)
+
+			m.is_making_gpt_explanation_request = false
+
+			return m, nil
+
+		case GPTexplanationError:
+			m.is_making_gpt_explanation_request = false
+			m.prompt_response_screen_err = "❌ " + msg.err.Error()
+
+		case copyCommandToClipboardResult:
+			return m, tea.Sequence(tea.Quit, sendOutputToChannel(msg.output))
+
+		case copyCommandToClipboardError:
+			m.prompt_response_screen_err = msg.err.Error()
 		}
 
 	case "running_command_screen":
 		switch msg := msg.(type) {
-		case RuOnTerminalResultMsg:
-			return m, tea.Sequence(tea.Quit, sendOutputToChannel(msg.output))
-
-		case RuOnTerminalErrorMsg:
-			m.running_command_screen_err = "❌ " + msg.err.Error()
-			return m, nil
 
 		case tea.KeyMsg:
 			switch {
@@ -302,6 +306,14 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 				m.running_command_screen_err = ""
 				return m, nil
 			}
+
+		case RuOnTerminalResultMsg:
+			return m, tea.Sequence(tea.Quit, sendOutputToChannel(msg.output))
+
+		case RuOnTerminalErrorMsg:
+			m.running_command_screen_err = "❌ " + msg.err.Error()
+			return m, nil
+
 		}
 
 	case "response_edit_screen":
@@ -624,5 +636,37 @@ func makeGPTexplanationRequest(code string) tea.Cmd {
 		// 			`,
 		// 		}
 
+	}
+}
+
+type copyCommandToClipboardResult struct {
+	output string
+}
+
+type copyCommandToClipboardError struct {
+	err error
+}
+
+func copyCommandToClipboard(command string) tea.Cmd {
+	return func() tea.Msg {
+
+		copy_this := "echo %s | pbcopy"
+
+		command_to_run := fmt.Sprintf(copy_this, strconv.Quote(command))
+
+		c := exec.Command("bash", "-c", command_to_run)
+
+		var stdout, stderr bytes.Buffer
+		c.Stdout = &stdout
+		c.Stderr = &stderr
+
+		err := c.Run()
+
+		if err != nil {
+			return copyCommandToClipboardError{err: fmt.Errorf("❌ error copying to clipboard: %w", stderr.String())}
+		}
+		return copyCommandToClipboardResult{
+			output: "✅ Command copied to clipboard!",
+		}
 	}
 }

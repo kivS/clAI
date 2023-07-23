@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"strconv"
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -22,9 +23,28 @@ var outputCh = make(chan string)
 
 func main() {
 
-	current_date := time.Now().UTC().Format("2006-01-02T15:04:05Z")
-	fmt.Println(current_date)
+	// command := `find . -type f -access +182 -print`
+	command := strconv.Quote(`ffmpeg -i input.mp4 -vf "select='not(mod(n,4))',setpts=N/FRAME_RATE/TB" output.mp4`)
 
+	copy_this := "echo '%s' | pbcopy"
+
+	command_to_run := fmt.Sprintf(copy_this, command)
+
+	fmt.Printf("command to run: %s", command_to_run)
+
+	c := exec.Command("bash", "-c", command_to_run)
+
+	var stdout, stderr bytes.Buffer
+	c.Stdout = &stdout
+	c.Stderr = &stderr
+
+	err := c.Run()
+	if err != nil {
+		fmt.Print(err)
+		fmt.Print(stderr.String())
+	}
+
+	fmt.Println("\n\n\nstdout:", stdout.String())
 	os.Exit(0)
 
 	p := tea.NewProgram(initialModel(), tea.WithAltScreen())
