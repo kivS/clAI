@@ -308,7 +308,8 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 			}
 
 		case RuOnTerminalResultMsg:
-			return m, tea.Sequence(tea.Quit, sendOutputToChannel(msg.output))
+			outputMsg := m.response_code_text + "\n\n" + msg.output
+			return m, tea.Sequence(tea.Quit, sendOutputToChannel(outputMsg))
 
 		case RuOnTerminalErrorMsg:
 			m.running_command_screen_err = "❌ " + msg.err.Error()
