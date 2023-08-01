@@ -148,6 +148,9 @@ func (m model) Init() tea.Cmd {
 	return tea.Batch(textarea.Blink, m.loading_spinner.Tick)
 }
 
+/**
+ * "Game loop" that processes user input, events, etc and updates the modal and runs commands
+ */
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -349,6 +352,10 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+/**
+* "Game loop" that updates the screen everytime the model changes.
+*  The function returns a string of the UI to be rendered
+ */
 func (m model) View() string {
 
 	switch m.selected_screen {
