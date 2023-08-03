@@ -7,6 +7,12 @@ A co-pilot for your terminal
 - Smart context aware results
 
 
+## Build and install the binary locally
+
+```bash
+go build main.go && mv main  ~/.local/bin/clai
+```
+
 ## How to debug
 
 - Run the dlv server command on the terminal:
