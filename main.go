@@ -39,6 +39,7 @@ func main() {
 type model struct {
 	loading_spinner                   spinner.Model
 	loading_timer                     time.Time
+	loading_duration                  float64
 	prompt_textarea                   textarea.Model
 	prompt_screen_err                 string
 	is_making_gpt_code_request        bool
@@ -190,6 +191,7 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 					return m, nil
 				}
 
+				m.loading_timer = time.Now()
 				m.is_making_gpt_code_request = true
 
 				return m, makeGPTcommandRequest(m.prompt_textarea.Value())
@@ -203,6 +205,8 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 			}
 
 		case GPTcommandResult:
+
+			m.loading_duration = time.Since(m.loading_timer).Seconds()
 
 			m.response_code_text = msg.content
 
@@ -222,6 +226,7 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case GPTcommandError:
+			m.loading_duration = time.Since(m.loading_timer).Seconds()
 			m.is_making_gpt_code_request = false
 			m.prompt_screen_err = "❌ " + msg.err.Error()
 			return m, nil
@@ -240,12 +245,14 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 			switch {
 
 			case key.Matches(msg, m.help_keymap.run):
+				m.loading_timer = time.Now()
 				m.selected_screen = "running_command_screen"
 
 				return m, runOnTerminal(m.response_code_text)
 
 			case key.Matches(msg, m.help_keymap.explain):
 
+				m.loading_timer = time.Now()
 				m.is_making_gpt_explanation_request = true
 
 				return m, makeGPTexplanationRequest(m.response_code_text)
@@ -275,6 +282,8 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 
 		case GPTexplanationResult:
 
+			m.loading_duration = time.Since(m.loading_timer).Seconds()
+
 			m.command_explanation_text = msg.content
 
 			renderer, _ := glamour.NewTermRenderer(
@@ -290,6 +299,7 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case GPTexplanationError:
+			m.loading_duration = time.Since(m.loading_timer).Seconds()
 			m.is_making_gpt_explanation_request = false
 			m.prompt_response_screen_err = "❌ " + msg.err.Error()
 
@@ -312,10 +322,12 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 			}
 
 		case RuOnTerminalResultMsg:
-			outputMsg := m.response_code_text + "\n\n" + msg.output
+			m.loading_duration = time.Since(m.loading_timer).Seconds()
+			outputMsg := "\n\n" + m.response_code_text + fmt.Sprintf("\n\nTook %.1fs\n\n", m.loading_duration) + msg.output
 			return m, tea.Sequence(tea.Quit, sendOutputToChannel(outputMsg))
 
 		case RuOnTerminalErrorMsg:
+			m.loading_duration = time.Since(m.loading_timer).Seconds()
 			m.running_command_screen_err = "❌ " + msg.err.Error()
 			return m, nil
 
@@ -373,7 +385,7 @@ func (m model) View() string {
 
 		if m.is_making_gpt_code_request {
 			s += "\n\n"
-			s += m.loading_spinner.View() + " Making request..."
+			s += m.loading_spinner.View() + " Making request..." + fmt.Sprintf(" %.1fs\n\n", time.Since(m.loading_timer).Seconds())
 		}
 
 		// The footer
@@ -400,13 +412,17 @@ func (m model) View() string {
 
 		if m.is_making_gpt_explanation_request {
 			s += "\n\n"
-			s += m.loading_spinner.View() + " Loading explanation..."
+			s += m.loading_spinner.View() + " Loading explanation..." + fmt.Sprintf(" %.1fs\n\n", time.Since(m.loading_timer).Seconds())
 		}
 
 		if m.command_explanation_text != "" && !m.is_making_gpt_explanation_request {
 			s += "\n\n"
 			s += "Explanation\n"
 			s += m.explanation_result_viewport.View()
+		}
+
+		if !m.is_making_gpt_code_request && !m.is_making_gpt_explanation_request {
+			s += fmt.Sprintf("\n\nTook %.1fs\n\n", m.loading_duration)
 		}
 
 		// The footer
@@ -430,6 +446,8 @@ func (m model) View() string {
 			s += "\n\n"
 			s += m.running_command_screen_err
 
+			s += fmt.Sprintf("\n\nTook %.1fs\n\n", m.loading_duration)
+
 			// The footer
 			s += strings.Repeat("\n", 4)
 			s += m.help.FullHelpView([][]key.Binding{
@@ -440,7 +458,7 @@ func (m model) View() string {
 			})
 
 		} else {
-			s += m.loading_spinner.View() + " Processing...\n\n"
+			s += m.loading_spinner.View() + " Processing..." + fmt.Sprintf(" %.1fs\n\n", time.Since(m.loading_timer).Seconds())
 		}
 		return s
 
