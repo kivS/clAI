@@ -38,6 +38,7 @@ func main() {
 
 type model struct {
 	loading_spinner                   spinner.Model
+	loading_timer                     time.Time
 	prompt_textarea                   textarea.Model
 	prompt_screen_err                 string
 	is_making_gpt_code_request        bool
@@ -179,6 +180,28 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 
 		switch msg := msg.(type) {
 
+		case tea.KeyMsg:
+			switch {
+
+			case key.Matches(msg, m.help_keymap.start):
+
+				if m.prompt_textarea.Value() == "" {
+					m.prompt_screen_err = "❌ Prompt cannot be empty"
+					return m, nil
+				}
+
+				m.is_making_gpt_code_request = true
+
+				return m, makeGPTcommandRequest(m.prompt_textarea.Value())
+
+			default:
+				if !m.prompt_textarea.Focused() {
+					cmd = m.prompt_textarea.Focus()
+					cmds = append(cmds, cmd)
+				}
+				m.prompt_screen_err = ""
+			}
+
 		case GPTcommandResult:
 
 			m.response_code_text = msg.content
@@ -202,28 +225,6 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 			m.is_making_gpt_code_request = false
 			m.prompt_screen_err = "❌ " + msg.err.Error()
 			return m, nil
-
-		case tea.KeyMsg:
-			switch {
-
-			case key.Matches(msg, m.help_keymap.start):
-
-				if m.prompt_textarea.Value() == "" {
-					m.prompt_screen_err = "❌ Prompt cannot be empty"
-					return m, nil
-				}
-
-				m.is_making_gpt_code_request = true
-
-				return m, makeGPTcommandRequest(m.prompt_textarea.Value())
-
-			default:
-				if !m.prompt_textarea.Focused() {
-					cmd = m.prompt_textarea.Focus()
-					cmds = append(cmds, cmd)
-				}
-				m.prompt_screen_err = ""
-			}
 		}
 
 		m.prompt_textarea, cmd = m.prompt_textarea.Update(msg)
