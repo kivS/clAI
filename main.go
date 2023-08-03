@@ -88,7 +88,9 @@ func initialModel() model {
 	response_code_viewport := viewport.New(100, 7)
 	response_code_viewport.Style = lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("62"))
+		BorderForeground(lipgloss.Color("62")).
+		PaddingLeft(2).
+		PaddingRight(2)
 
 	loading_spinner := spinner.New()
 	loading_spinner.Spinner = spinner.Moon
