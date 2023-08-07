@@ -393,16 +393,16 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 				return m, nil
 
 			case key.Matches(msg, m.help_keymap.save):
-				// selected := m.history_list.SelectedItem().(history_list_item)
+				selected := m.history_list.SelectedItem().(history_list_item)
 
-				// m.response_code_text = selected.response_code
-				// m.command_explanation_text = selected.response_explanation
+				m.response_code_text = selected.ResponseCode
+				m.command_explanation_text = selected.ResponseExplanation
 
-				// m.response_code_viewport.SetContent(renderResponseCodeViewport(m.response_code_text))
+				m.response_code_viewport.SetContent(renderResponseCodeViewport(m.response_code_text))
 
-				// m.explanation_result_viewport.SetContent(renderExplanationResultViewport(m.command_explanation_text))
+				m.explanation_result_viewport.SetContent(renderExplanationResultViewport(m.command_explanation_text))
 
-				// m.selected_screen = "prompt_response_screen"
+				m.selected_screen = "prompt_response_screen"
 				return m, nil
 			}
 		case tea.WindowSizeMsg:
