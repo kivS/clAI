@@ -3,14 +3,15 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"os/exec"
-	"strconv"
 	"time"
 
+	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -24,28 +25,28 @@ var outputCh = make(chan string)
 func main() {
 
 	// command := `find . -type f -access +182 -print`
-	command := strconv.Quote(`ffmpeg -i input.mp4 -vf "select='not(mod(n,4))',setpts=N/FRAME_RATE/TB" output.mp4`)
+	// command := strconv.Quote(`ffmpeg -i input.mp4 -vf "select='not(mod(n,4))',setpts=N/FRAME_RATE/TB" output.mp4`)
 
-	copy_this := "echo '%s' | pbcopy"
+	// copy_this := "echo '%s' | pbcopy"
 
-	command_to_run := fmt.Sprintf(copy_this, command)
+	// command_to_run := fmt.Sprintf(copy_this, command)
 
-	fmt.Printf("command to run: %s", command_to_run)
+	// fmt.Printf("command to run: %s", command_to_run)
 
-	c := exec.Command("bash", "-c", command_to_run)
+	// c := exec.Command("bash", "-c", command_to_run)
 
-	var stdout, stderr bytes.Buffer
-	c.Stdout = &stdout
-	c.Stderr = &stderr
+	// var stdout, stderr bytes.Buffer
+	// c.Stdout = &stdout
+	// c.Stderr = &stderr
 
-	err := c.Run()
-	if err != nil {
-		fmt.Print(err)
-		fmt.Print(stderr.String())
-	}
+	// err := c.Run()
+	// if err != nil {
+	// 	fmt.Print(err)
+	// 	fmt.Print(stderr.String())
+	// }
 
-	fmt.Println("\n\n\nstdout:", stdout.String())
-	os.Exit(0)
+	// fmt.Println("\n\n\nstdout:", stdout.String())
+	// os.Exit(0)
 
 	p := tea.NewProgram(initialModel(), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
@@ -64,6 +65,7 @@ type model struct {
 	output   string
 	spinner  spinner.Model
 	viewport viewport.Model
+	list     list.Model
 }
 
 type httpMsg struct {
@@ -76,6 +78,17 @@ type CommandMsg struct {
 	err    error
 	output string
 }
+
+type Item struct {
+	prompt     string
+	created_at string
+}
+
+var docStyle = lipgloss.NewStyle().Margin(1, 2)
+
+func (i Item) Title() string       { return i.created_at }
+func (i Item) Description() string { return i.prompt }
+func (i Item) FilterValue() string { return i.prompt }
 
 func initialModel() model {
 
@@ -97,6 +110,17 @@ func initialModel() model {
 	s := spinner.New()
 	s.Spinner = spinner.Moon
 
+	items := []list.Item{
+		Item{prompt: "How to get the first frame of a video?", created_at: "2021-04-12 12:00"},
+		Item{prompt: "How to get the last frame of a video?", created_at: "2021-04-12 12:00"},
+		Item{prompt: "How to get every 3rd frame of a video?", created_at: "2021-04-12 12:00"},
+		Item{prompt: "How to get every 5rd frame of a video?", created_at: "2021-04-12 12:00"},
+		Item{prompt: "Potatoes are great mate! you know potatows are nice because potatoes!", created_at: "2021-04-12 12:00"},
+	}
+
+	that_list := list.New(items, list.NewDefaultDelegate(), 0, 0)
+	that_list.Title = "A big list of nothing!"
+
 	return model{
 		Quitting: false,
 		text:     "",
@@ -104,11 +128,13 @@ func initialModel() model {
 		viewport: vp,
 		output:   "",
 		spinner:  s,
+		list:     that_list,
 	}
 }
 
 func (m model) Init() tea.Cmd {
-	return m.spinner.Tick
+	// return m.spinner.Tick
+	return loadHistoryFromFile
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -120,14 +146,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 
 		case "enter":
-			// m.Quitting = true
+			return m, loadHistoryFromFile
+			// i, ok := m.list.SelectedItem().(Item)
+			// if ok {
 
-			// return m, nil
+			// 	fmt.Println(i.prompt)
+			// 	return m, nil
+			// }
 
-			// return m, makeGPTcommandRequest()
-
-			return m, runOnTerminal("")
-			// return m, makeRequest("https://charm.sh/")
 		}
 
 	case httpMsg:
@@ -135,21 +161,35 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.text = msg.text
 		return m, nil
 
+	case HistoryFromFileResult:
+		fmt.Printf("%v\n", msg.history)
+		m.output = fmt.Sprintf("%v\n", msg.history)
+		return m, nil
+
 	case CommandMsg:
 		m.output = msg.output
 		return m, tea.Sequence(tea.Quit, sendOutput(string(msg.output)))
 		// return m, tea.Sequence(tea.Quit, sendOutput(string(msg.output)))
 
-	default:
-		var cmd tea.Cmd
-		m.spinner, cmd = m.spinner.Update(msg)
-		return m, cmd
+	case tea.WindowSizeMsg:
+		h, v := docStyle.GetFrameSize()
+		m.list.SetSize(msg.Width-h, msg.Height-v)
+
+		// default:
+		// var cmd tea.Cmd
+		// m.spinner, cmd = m.spinner.Update(msg)
+		// return m, cmd
 
 	}
-	return m, nil
+	var cmd tea.Cmd
+	m.list, cmd = m.list.Update(msg)
+	return m, cmd
+	// return m, nil
 }
 
 func (m model) View() string {
+
+	// return docStyle.Render(m.list.View())
 
 	s := ""
 
@@ -173,6 +213,44 @@ func (m model) View() string {
 	s += "\n\nPress ctrl+c to quit."
 	return s
 
+}
+
+type history_list_item struct {
+	CreatedAt           time.Time `json:"created_at"`
+	PromptText          string    `json:"prompt_text"`
+	ResponseCode        string    `json:"response_code"`
+	ResponseExplanation string    `json:"response_explanation"`
+}
+
+type HistoryFromFileResult struct {
+	history []history_list_item
+}
+
+func loadHistoryFromFile() tea.Msg {
+
+	var historyList []history_list_item
+
+	// empty_result := HistoryFromFileResult{
+	// 	history: []history_list_item{},
+	// }
+
+	// load json file
+	file, err := os.Open(".clai/store.json")
+	if err != nil {
+		// return empty_result
+		fmt.Printf("Error loading history file: %v\n", err)
+	}
+	defer file.Close()
+
+	decoder := json.NewDecoder(file)
+	err = decoder.Decode(&historyList)
+	if err != nil {
+		fmt.Printf("Error decoding JSON: %v\n", err)
+	}
+
+	return HistoryFromFileResult{
+		history: historyList,
+	}
 }
 
 func makeRequest(url string) tea.Cmd {

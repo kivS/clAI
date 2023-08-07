@@ -9,6 +9,8 @@ require (
 	github.com/charmbracelet/lipgloss v0.7.1
 )
 
+require github.com/sahilm/fuzzy v0.1.0 // indirect
+
 require (
 	github.com/alecthomas/chroma v0.10.0 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect

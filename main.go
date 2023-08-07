@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -54,7 +56,24 @@ type model struct {
 	command_explanation_text          string
 	is_making_gpt_explanation_request bool
 	explanation_result_viewport       viewport.Model
+	history_list                      list.Model
 }
+
+// for json umarshall(decode) to work we need to have the fields exported
+// ie, start with a capital letter and also need to tell which fields to use
+// in the json with the `json:"field_name"` syntax
+type history_list_item struct {
+	CreatedAt           time.Time `json:"created_at"`
+	PromptText          string    `json:"prompt_text"`
+	ResponseCode        string    `json:"response_code"`
+	ResponseExplanation string    `json:"response_explanation"`
+}
+
+func (i history_list_item) Title() string       { return i.CreatedAt.String() }
+func (i history_list_item) Description() string { return i.PromptText }
+func (i history_list_item) FilterValue() string { return i.PromptText }
+
+var history_list_style = lipgloss.NewStyle().Margin(1, 2)
 
 type help_keymap struct {
 	start   key.Binding
@@ -65,6 +84,7 @@ type help_keymap struct {
 	copy    key.Binding
 	go_back key.Binding
 	exit    key.Binding
+	history key.Binding
 }
 
 func initialModel() model {
@@ -95,6 +115,9 @@ func initialModel() model {
 	loading_spinner := spinner.New()
 	loading_spinner.Spinner = spinner.Moon
 
+	history_list := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
+	history_list.Title = "Your past queries"
+
 	return model{
 		loading_spinner:                   loading_spinner,
 		prompt_textarea:                   prompt_textarea,
@@ -109,6 +132,7 @@ func initialModel() model {
 		explanation_result_viewport:       explanation_result_viewport,
 		is_making_gpt_explanation_request: false,
 		running_command_screen_err:        "",
+		history_list:                      history_list,
 		help:                              help.New(),
 		help_keymap: help_keymap{
 			start: key.NewBinding(
@@ -142,6 +166,11 @@ func initialModel() model {
 			exit: key.NewBinding(
 				key.WithKeys("ctrl+c"),
 				key.WithHelp("[ ctrl+c ]", "Exit"),
+			),
+
+			history: key.NewBinding(
+				key.WithKeys("ctrl+h"),
+				key.WithHelp("[ ctrl+h ]", "History"),
 			),
 		},
 	}
@@ -198,6 +227,11 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 
 				return m, makeGPTcommandRequest(m.prompt_textarea.Value())
 
+			case key.Matches(msg, m.help_keymap.history):
+
+				m.selected_screen = "history_screen"
+				return m, loadHistoryFromFile
+
 			default:
 				if !m.prompt_textarea.Focused() {
 					cmd = m.prompt_textarea.Focus()
@@ -212,14 +246,7 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 
 			m.response_code_text = msg.content
 
-			renderer, _ := glamour.NewTermRenderer(
-				glamour.WithAutoStyle(),
-				// glamour.WithWordWrap(20),
-			)
-
-			str, _ := renderer.Render(fmt.Sprintf("```bash\n%s\n```", m.response_code_text))
-
-			m.response_code_viewport.SetContent(str)
+			m.response_code_viewport.SetContent(renderResponseCodeViewport(m.response_code_text))
 
 			m.selected_screen = "prompt_response_screen"
 
@@ -288,13 +315,7 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 
 			m.command_explanation_text = msg.content
 
-			renderer, _ := glamour.NewTermRenderer(
-				glamour.WithAutoStyle(),
-				glamour.WithWordWrap(60),
-			)
-
-			str, _ := renderer.Render(m.command_explanation_text)
-			m.explanation_result_viewport.SetContent(str)
+			m.explanation_result_viewport.SetContent(renderExplanationResultViewport(m.command_explanation_text))
 
 			m.is_making_gpt_explanation_request = false
 
@@ -362,6 +383,51 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 			m.response_code_textInput, cmd = m.response_code_textInput.Update(msg)
 			return m, cmd
 		}
+
+	case "history_screen":
+		switch msg := msg.(type) {
+		case tea.KeyMsg:
+			switch {
+			case key.Matches(msg, m.help_keymap.exit):
+				m.selected_screen = "prompt_screen"
+				return m, nil
+
+			case key.Matches(msg, m.help_keymap.save):
+				// selected := m.history_list.SelectedItem().(history_list_item)
+
+				// m.response_code_text = selected.response_code
+				// m.command_explanation_text = selected.response_explanation
+
+				// m.response_code_viewport.SetContent(renderResponseCodeViewport(m.response_code_text))
+
+				// m.explanation_result_viewport.SetContent(renderExplanationResultViewport(m.command_explanation_text))
+
+				// m.selected_screen = "prompt_response_screen"
+				return m, nil
+			}
+		case tea.WindowSizeMsg:
+			w, h := history_list_style.GetFrameSize()
+			m.history_list.SetSize(msg.Width-w, msg.Height-h)
+			return m, nil
+
+		case HistoryFromFileResult:
+
+			items := make([]list.Item, len(msg.history))
+			for i, item := range msg.history {
+				items[i] = history_list_item{
+					PromptText:          item.PromptText,
+					ResponseCode:        item.ResponseCode,
+					ResponseExplanation: item.ResponseExplanation,
+				}
+			}
+			m.history_list.SetItems(items)
+
+			return m, nil
+		}
+
+		var cmd tea.Cmd
+		m.history_list, cmd = m.history_list.Update(msg)
+		return m, cmd
 	}
 
 	return m, nil
@@ -395,6 +461,7 @@ func (m model) View() string {
 		s += m.help.FullHelpView([][]key.Binding{
 			{
 				m.help_keymap.start,
+				m.help_keymap.history,
 				m.help_keymap.exit,
 			},
 		})
@@ -479,6 +546,9 @@ func (m model) View() string {
 			},
 		})
 		return s
+
+	case "history_screen":
+		return history_list_style.Render(m.history_list.View())
 
 	default:
 		return ""
@@ -697,5 +767,60 @@ func copyCommandToClipboard(command string) tea.Cmd {
 		return copyCommandToClipboardResult{
 			output: "✅ Command copied to clipboard!",
 		}
+	}
+}
+
+func renderResponseCodeViewport(code string) string {
+	renderer, _ := glamour.NewTermRenderer(
+		glamour.WithAutoStyle(),
+		// glamour.WithWordWrap(20),
+	)
+
+	str, _ := renderer.Render(fmt.Sprintf("```bash\n%s\n```", code))
+
+	return str
+}
+
+func renderExplanationResultViewport(explanation string) string {
+	renderer, _ := glamour.NewTermRenderer(
+		glamour.WithAutoStyle(),
+		glamour.WithWordWrap(60),
+	)
+
+	str, _ := renderer.Render(explanation)
+
+	return str
+}
+
+type HistoryFromFileResult struct {
+	history []history_list_item
+}
+
+func loadHistoryFromFile() tea.Msg {
+
+	var historyList []history_list_item
+
+	empty_result := HistoryFromFileResult{
+		history: []history_list_item{},
+	}
+
+	// load json file
+	file, err := os.Open(".clai/store.json")
+	if err != nil {
+		// return empty_result
+		fmt.Printf("Error loading history file: %v\n", err)
+		return empty_result
+	}
+	defer file.Close()
+
+	decoder := json.NewDecoder(file)
+	err = decoder.Decode(&historyList)
+	if err != nil {
+		fmt.Printf("Error decoding JSON: %v\n", err)
+		return empty_result
+	}
+
+	return HistoryFromFileResult{
+		history: historyList,
 	}
 }
