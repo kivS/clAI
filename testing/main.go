@@ -24,6 +24,12 @@ var outputCh = make(chan string)
 
 func main() {
 
+	appConfigDir, _ := os.UserConfigDir()
+
+	fmt.Println(appConfigDir)
+
+	os.Exit(0)
+
 	// command := `find . -type f -access +182 -print`
 	// command := strconv.Quote(`ffmpeg -i input.mp4 -vf "select='not(mod(n,4))',setpts=N/FRAME_RATE/TB" output.mp4`)
 

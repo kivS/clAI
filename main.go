@@ -181,7 +181,11 @@ func initialModel() model {
 
 func (m model) Init() tea.Cmd {
 	// I/O we want to perform right as the program is starting
-	return tea.Batch(textarea.Blink, m.loading_spinner.Tick)
+	return tea.Batch(
+		textarea.Blink,
+		m.loading_spinner.Tick,
+		initAppConfigDir,
+	)
 }
 
 /**
@@ -811,7 +815,7 @@ type HistoryFromFileResult struct {
 	history []history_list_item
 }
 
-const store_file_location = ".clai/store.json"
+const store_file_location = "store.json"
 
 /**
 * Loads the store.json into a history_list_item struct
@@ -820,7 +824,7 @@ func LoadStore() []history_list_item {
 	var historyList []history_list_item
 
 	// load json file
-	file, err := os.Open(store_file_location)
+	file, err := os.Open(filepath.Join(getAppConfigDir(), store_file_location))
 	if err != nil {
 		// return empty_result
 		fmt.Printf("Error loading history file: %v\n", err)
@@ -842,14 +846,8 @@ func LoadStore() []history_list_item {
 **/
 func SaveStore(historyList []history_list_item) {
 
-	err := os.MkdirAll(filepath.Dir(store_file_location), 0755)
-	if err != nil {
-		fmt.Printf("Error creating .clai directory: %v\n", err)
-		return
-	}
-
 	// save json file
-	file, err := os.Create(store_file_location)
+	file, err := os.Create(filepath.Join(getAppConfigDir(), store_file_location))
 	if err != nil {
 		fmt.Printf("Error creating history file: %v\n", err)
 		return
@@ -913,4 +911,28 @@ func storeExplanationInHistory(explanation string) tea.Cmd {
 		return nil
 
 	}
+}
+
+func getAppConfigDir() string {
+	appConfigDir, err := os.UserConfigDir()
+	if err != nil {
+		fmt.Printf("Error getting user config dir: %v\n", err)
+		return ""
+	}
+
+	appConfigDir = filepath.Join(appConfigDir, "clAI")
+
+	return appConfigDir
+}
+
+func initAppConfigDir() tea.Msg {
+
+	err := os.MkdirAll(getAppConfigDir(), 0755)
+	if err != nil {
+		fmt.Printf("Error creating clai directory: %v\n", err)
+		return nil
+	}
+
+	return nil
+
 }
