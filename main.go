@@ -57,6 +57,8 @@ type model struct {
 	is_making_gpt_explanation_request bool
 	explanation_result_viewport       viewport.Model
 	history_list                      list.Model
+	terminal_width                    int
+	terminal_height                   int
 }
 
 // for json umarshall(decode) to work we need to have the fields exported
@@ -197,6 +199,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		m.loading_spinner, cmd = m.loading_spinner.Update(msg)
 		return m, cmd
+
+	case tea.WindowSizeMsg:
+		m.terminal_width = msg.Width
+		m.terminal_height = msg.Height
 
 	}
 
@@ -421,6 +427,9 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 				}
 			}
 			m.history_list.SetItems(items)
+
+			w, h := history_list_style.GetFrameSize()
+			m.history_list.SetSize(m.terminal_width-w, m.terminal_height-h)
 
 			return m, nil
 		}
