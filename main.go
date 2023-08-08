@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -25,8 +26,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/sashabaranov/go-openai"
 )
-
-const store_file_location = ".clai/store.json"
 
 func main() {
 	p := tea.NewProgram(initialModel(), tea.WithAltScreen())
@@ -812,6 +811,8 @@ type HistoryFromFileResult struct {
 	history []history_list_item
 }
 
+const store_file_location = ".clai/store.json"
+
 /**
 * Loads the store.json into a history_list_item struct
 **/
@@ -823,7 +824,7 @@ func LoadStore() []history_list_item {
 	if err != nil {
 		// return empty_result
 		fmt.Printf("Error loading history file: %v\n", err)
-		return nil
+		return []history_list_item{}
 	}
 	defer file.Close()
 
@@ -831,7 +832,7 @@ func LoadStore() []history_list_item {
 	err = decoder.Decode(&historyList)
 	if err != nil {
 		fmt.Printf("Error decoding JSON: %v\n", err)
-		return nil
+		return []history_list_item{}
 	}
 	return historyList
 }
@@ -840,6 +841,13 @@ func LoadStore() []history_list_item {
 * Saves an array of history_list_item struct into store.json
 **/
 func SaveStore(historyList []history_list_item) {
+
+	err := os.MkdirAll(filepath.Dir(store_file_location), 0755)
+	if err != nil {
+		fmt.Printf("Error creating .clai directory: %v\n", err)
+		return
+	}
+
 	// save json file
 	file, err := os.Create(store_file_location)
 	if err != nil {
