@@ -26,6 +26,8 @@ import (
 	"github.com/sashabaranov/go-openai"
 )
 
+const store_file_location = ".clai/store.json"
+
 func main() {
 	p := tea.NewProgram(initialModel(), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
@@ -71,8 +73,8 @@ type history_list_item struct {
 	ResponseExplanation string    `json:"response_explanation"`
 }
 
-func (i history_list_item) Title() string       { return i.CreatedAt.String() }
-func (i history_list_item) Description() string { return i.PromptText }
+func (i history_list_item) Title() string       { return i.PromptText }
+func (i history_list_item) Description() string { return "" }
 func (i history_list_item) FilterValue() string { return i.PromptText }
 
 var history_list_style = lipgloss.NewStyle().Margin(1, 2)
@@ -258,7 +260,12 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 
 			m.is_making_gpt_code_request = false
 
-			return m, nil
+			return m, appendToHistory(
+				history_list_item{
+					PromptText:   m.prompt_textarea.Value(),
+					ResponseCode: m.response_code_text,
+				},
+			)
 
 		case GPTcommandError:
 			m.loading_duration = time.Since(m.loading_timer).Seconds()
@@ -325,7 +332,7 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 
 			m.is_making_gpt_explanation_request = false
 
-			return m, nil
+			return m, storeExplanationInHistory(m.command_explanation_text)
 
 		case GPTexplanationError:
 			m.loading_duration = time.Since(m.loading_timer).Seconds()
@@ -805,20 +812,18 @@ type HistoryFromFileResult struct {
 	history []history_list_item
 }
 
-func loadHistoryFromFile() tea.Msg {
-
+/**
+* Loads the store.json into a history_list_item struct
+**/
+func LoadStore() []history_list_item {
 	var historyList []history_list_item
 
-	empty_result := HistoryFromFileResult{
-		history: []history_list_item{},
-	}
-
 	// load json file
-	file, err := os.Open(".clai/store.json")
+	file, err := os.Open(store_file_location)
 	if err != nil {
 		// return empty_result
 		fmt.Printf("Error loading history file: %v\n", err)
-		return empty_result
+		return nil
 	}
 	defer file.Close()
 
@@ -826,10 +831,78 @@ func loadHistoryFromFile() tea.Msg {
 	err = decoder.Decode(&historyList)
 	if err != nil {
 		fmt.Printf("Error decoding JSON: %v\n", err)
-		return empty_result
+		return nil
+	}
+	return historyList
+}
+
+/**
+* Saves an array of history_list_item struct into store.json
+**/
+func SaveStore(historyList []history_list_item) {
+	// save json file
+	file, err := os.Create(store_file_location)
+	if err != nil {
+		fmt.Printf("Error creating history file: %v\n", err)
+		return
+	}
+	defer file.Close()
+
+	encoder := json.NewEncoder(file)
+	err = encoder.Encode(historyList)
+	if err != nil {
+		fmt.Printf("Error encoding JSON: %v\n", err)
+		return
+	}
+}
+
+func loadHistoryFromFile() tea.Msg {
+
+	historyList := LoadStore()
+
+	if historyList == nil {
+		return HistoryFromFileResult{
+			history: []history_list_item{},
+		}
 	}
 
 	return HistoryFromFileResult{
 		history: historyList,
+	}
+}
+
+func appendToHistory(item history_list_item) tea.Cmd {
+	return func() tea.Msg {
+		item.CreatedAt = time.Now()
+
+		historyList := LoadStore()
+
+		if historyList != nil {
+			historyList = append(historyList, item)
+
+			SaveStore(historyList)
+		}
+
+		return nil
+
+	}
+}
+
+func storeExplanationInHistory(explanation string) tea.Cmd {
+	return func() tea.Msg {
+		historyList := LoadStore()
+
+		if historyList != nil {
+			lastItem := historyList[len(historyList)-1]
+
+			lastItem.ResponseExplanation = explanation
+
+			historyList[len(historyList)-1] = lastItem
+
+			SaveStore(historyList)
+		}
+
+		return nil
+
 	}
 }
