@@ -53,7 +53,6 @@ type model struct {
 	response_code_textInput           textinput.Model
 	running_command_screen_err        string
 	help                              help.Model
-	help_keymap                       help_keymap
 	command_explanation_text          string
 	is_making_gpt_explanation_request bool
 	explanation_result_viewport       viewport.Model
@@ -77,18 +76,6 @@ func (i history_list_item) Description() string { return "" }
 func (i history_list_item) FilterValue() string { return i.PromptText }
 
 var history_list_style = lipgloss.NewStyle().Margin(1, 2)
-
-type help_keymap struct {
-	start   key.Binding
-	save    key.Binding
-	run     key.Binding
-	modify  key.Binding
-	explain key.Binding
-	copy    key.Binding
-	go_back key.Binding
-	exit    key.Binding
-	history key.Binding
-}
 
 func initialModel() model {
 	prompt_textarea := textarea.New()
@@ -122,10 +109,11 @@ func initialModel() model {
 	history_list.Title = "Your past queries"
 
 	return model{
-		loading_spinner:                   loading_spinner,
-		prompt_textarea:                   prompt_textarea,
-		prompt_screen_err:                 "",
-		selected_screen:                   "prompt_screen",
+		loading_spinner:   loading_spinner,
+		prompt_textarea:   prompt_textarea,
+		prompt_screen_err: "",
+		// selected_screen:                   "prompt_screen",
+		selected_screen:                   "prompt_response_screen",
 		is_making_gpt_code_request:        false,
 		prompt_response_screen_err:        "",
 		response_code_text:                "",
@@ -137,45 +125,6 @@ func initialModel() model {
 		running_command_screen_err:        "",
 		history_list:                      history_list,
 		help:                              help.New(),
-		help_keymap: help_keymap{
-			start: key.NewBinding(
-				key.WithKeys("ctrl+s"),
-				key.WithHelp("[ ctrl+s ]", "Start"),
-			),
-			save: key.NewBinding(
-				key.WithKeys("enter"),
-				key.WithHelp("[ enter  ]", "Save"),
-			),
-			run: key.NewBinding(
-				key.WithKeys("enter"),
-				key.WithHelp("[ enter  ]", "Run the command"),
-			),
-			modify: key.NewBinding(
-				key.WithKeys("m"),
-				key.WithHelp("[ m      ]", "Modify command"),
-			),
-			explain: key.NewBinding(
-				key.WithKeys("e"),
-				key.WithHelp("[ e      ]", "Explain command"),
-			),
-			copy: key.NewBinding(
-				key.WithKeys("c"),
-				key.WithHelp("[ c      ]", "Copy command to clipboard"),
-			),
-			go_back: key.NewBinding(
-				key.WithKeys("esc"),
-				key.WithHelp("[ esc    ]", "Go back"),
-			),
-			exit: key.NewBinding(
-				key.WithKeys("ctrl+c"),
-				key.WithHelp("[ ctrl+c ]", "Exit"),
-			),
-
-			history: key.NewBinding(
-				key.WithKeys("ctrl+h"),
-				key.WithHelp("[ ctrl+h ]", "History"),
-			),
-		},
 	}
 }
 
@@ -194,8 +143,8 @@ func (m model) Init() tea.Cmd {
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch {
-		case key.Matches(msg, m.help_keymap.exit):
+		switch msg.String() {
+		case "ctrl+c":
 			// make sure the channel is not blocking after we exit
 			return m, tea.Sequence(tea.Quit, sendOutputToChannel("Bye!"))
 		}
@@ -224,9 +173,9 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 		switch msg := msg.(type) {
 
 		case tea.KeyMsg:
-			switch {
+			switch msg.String() {
 
-			case key.Matches(msg, m.help_keymap.start):
+			case "ctrl+s":
 
 				if m.prompt_textarea.Value() == "" {
 					m.prompt_screen_err = "❌ Prompt cannot be empty"
@@ -238,7 +187,7 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 
 				return m, makeGPTcommandRequest(m.prompt_textarea.Value())
 
-			case key.Matches(msg, m.help_keymap.history):
+			case "ctrl+h":
 
 				m.selected_screen = "history_screen"
 				return m, loadHistoryFromFile
@@ -287,36 +236,35 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 		switch msg := msg.(type) {
 
 		case tea.KeyMsg:
-			switch {
+			switch msg.String() {
 
-			case key.Matches(msg, m.help_keymap.run):
+			case "enter":
 				m.loading_timer = time.Now()
 				m.selected_screen = "running_command_screen"
 
 				return m, runOnTerminal(m.response_code_text)
 
-			case key.Matches(msg, m.help_keymap.explain):
+			case "e":
 
 				m.loading_timer = time.Now()
 				m.is_making_gpt_explanation_request = true
 
 				return m, makeGPTexplanationRequest(m.response_code_text)
 
-			case key.Matches(msg, m.help_keymap.go_back):
+			case "esc":
 				m.prompt_textarea.Focus()
-				m.prompt_textarea.SetValue("")
 				m.response_code_text = ""
 				m.command_explanation_text = ""
 				m.prompt_response_screen_err = ""
 				m.selected_screen = "prompt_screen"
-				return m, nil
+				return m, textarea.Blink
 
-			case key.Matches(msg, m.help_keymap.modify):
+			case "m":
 				m.response_code_textInput.SetValue(m.response_code_text)
 				m.selected_screen = "response_edit_screen"
 				return m, nil
 
-			case key.Matches(msg, m.help_keymap.copy):
+			case "c":
 				return m, copyCommandToClipboard(m.response_code_text)
 
 			default:
@@ -353,8 +301,8 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 		switch msg := msg.(type) {
 
 		case tea.KeyMsg:
-			switch {
-			case key.Matches(msg, m.help_keymap.go_back):
+			switch msg.String() {
+			case "esc":
 				m.selected_screen = "prompt_response_screen"
 				m.running_command_screen_err = ""
 				return m, nil
@@ -377,12 +325,12 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 
 		switch msg := msg.(type) {
 		case tea.KeyMsg:
-			switch {
-			case key.Matches(msg, m.help_keymap.go_back):
+			switch msg.String() {
+			case "esc":
 				m.selected_screen = "prompt_response_screen"
 				return m, nil
 
-			case key.Matches(msg, m.help_keymap.save):
+			case "enter":
 				if m.response_code_textInput.Value() != m.response_code_text {
 					m.response_code_text = m.response_code_textInput.Value()
 
@@ -403,12 +351,12 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 	case "history_screen":
 		switch msg := msg.(type) {
 		case tea.KeyMsg:
-			switch {
-			case key.Matches(msg, m.help_keymap.exit):
+			switch msg.String() {
+			case "ctrl+c":
 				m.selected_screen = "prompt_screen"
 				return m, nil
 
-			case key.Matches(msg, m.help_keymap.save):
+			case "enter":
 				selected := m.history_list.SelectedItem().(history_list_item)
 
 				m.response_code_text = selected.ResponseCode
@@ -479,9 +427,19 @@ func (m model) View() string {
 		s += strings.Repeat("\n", 4)
 		s += m.help.FullHelpView([][]key.Binding{
 			{
-				m.help_keymap.start,
-				m.help_keymap.history,
-				m.help_keymap.exit,
+				key.NewBinding(
+					key.WithKeys("ctrl+s"),
+					key.WithHelp("[ ctrl+s ]", "🚀 Start"),
+				),
+				key.NewBinding(
+					key.WithKeys("ctrl+h"),
+					key.WithHelp("[ ctrl+h ]", "📚 History"),
+				),
+
+				key.NewBinding(
+					key.WithKeys("ctrl+c"),
+					key.WithHelp("[ ctrl+c ]", "🚪 Exit"),
+				),
 			},
 		})
 
@@ -515,14 +473,35 @@ func (m model) View() string {
 
 		// The footer
 		s += strings.Repeat("\n", 4)
+
 		s += m.help.FullHelpView([][]key.Binding{
 			{
-				m.help_keymap.run,
-				m.help_keymap.explain,
-				m.help_keymap.modify,
-				m.help_keymap.copy,
-				m.help_keymap.go_back,
-				m.help_keymap.exit,
+
+				key.NewBinding(
+					key.WithKeys("enter"),
+					key.WithHelp("enter", "🚀 Run"),
+				),
+				key.NewBinding(
+					key.WithKeys("e"),
+					key.WithHelp("e", "📖 Explain code"),
+				),
+				key.NewBinding(
+					key.WithKeys("m"),
+					key.WithHelp("m ", "📝 Modify code"),
+				),
+
+				key.NewBinding(
+					key.WithKeys("c"),
+					key.WithHelp("c", "📋 Copy code to clipboard"),
+				),
+				key.NewBinding(
+					key.WithKeys("esc"),
+					key.WithHelp("esc", "🔙 Go back and amend prompt"),
+				),
+				key.NewBinding(
+					key.WithKeys("ctrl+c"),
+					key.WithHelp("ctrl+c", "🚪 Exit"),
+				),
 			},
 		})
 		return s
@@ -540,8 +519,14 @@ func (m model) View() string {
 			s += strings.Repeat("\n", 4)
 			s += m.help.FullHelpView([][]key.Binding{
 				{
-					m.help_keymap.go_back,
-					m.help_keymap.exit,
+					key.NewBinding(
+						key.WithKeys("esc"),
+						key.WithHelp("[ esc ]", "🔙 Go back"),
+					),
+					key.NewBinding(
+						key.WithKeys("ctrl+c"),
+						key.WithHelp("[ ctrl+c ]", "🚪 Exit"),
+					),
 				},
 			})
 
@@ -559,9 +544,18 @@ func (m model) View() string {
 		s += strings.Repeat("\n", 4)
 		s += m.help.FullHelpView([][]key.Binding{
 			{
-				m.help_keymap.save,
-				m.help_keymap.go_back,
-				m.help_keymap.exit,
+				key.NewBinding(
+					key.WithKeys("enter"),
+					key.WithHelp("[ enter ]", "💾 Save"),
+				),
+				key.NewBinding(
+					key.WithKeys("esc"),
+					key.WithHelp("[ esc ]", "🔙 Go back"),
+				),
+				key.NewBinding(
+					key.WithKeys("ctrl+c"),
+					key.WithHelp("[ ctrl+c ]", "🚪 Exit"),
+				),
 			},
 		})
 		return s
