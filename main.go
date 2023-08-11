@@ -109,11 +109,10 @@ func initialModel() model {
 	history_list.Title = "Your past queries"
 
 	return model{
-		loading_spinner:   loading_spinner,
-		prompt_textarea:   prompt_textarea,
-		prompt_screen_err: "",
-		// selected_screen:                   "prompt_screen",
-		selected_screen:                   "prompt_response_screen",
+		loading_spinner:                   loading_spinner,
+		prompt_textarea:                   prompt_textarea,
+		prompt_screen_err:                 "",
+		selected_screen:                   "prompt_screen",
 		is_making_gpt_code_request:        false,
 		prompt_response_screen_err:        "",
 		response_code_text:                "",
@@ -377,8 +376,9 @@ func updateSelectedScreen(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 		case HistoryFromFileResult:
 
 			items := make([]list.Item, len(msg.history))
+
 			for i, item := range msg.history {
-				items[i] = history_list_item{
+				items[len(items)-1-i] = history_list_item{
 					PromptText:          item.PromptText,
 					ResponseCode:        item.ResponseCode,
 					ResponseExplanation: item.ResponseExplanation,
