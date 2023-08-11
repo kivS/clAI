@@ -430,16 +430,16 @@ func (m model) View() string {
 			{
 				key.NewBinding(
 					key.WithKeys("ctrl+s"),
-					key.WithHelp("[ ctrl+s ]", "🚀 Start"),
+					key.WithHelp("[ ctrl+s ]", "✔︎ Start"),
 				),
 				key.NewBinding(
 					key.WithKeys("ctrl+h"),
-					key.WithHelp("[ ctrl+h ]", "📚 History"),
+					key.WithHelp("[ ctrl+h ]", "⍞ History"),
 				),
 
 				key.NewBinding(
 					key.WithKeys("ctrl+c"),
-					key.WithHelp("[ ctrl+c ]", "🚪 Exit"),
+					key.WithHelp("[ ctrl+c ]", "⏏︎ Exit"),
 				),
 			},
 		})
@@ -480,28 +480,28 @@ func (m model) View() string {
 
 				key.NewBinding(
 					key.WithKeys("enter"),
-					key.WithHelp("[  enter  ]", "🚀 Run"),
+					key.WithHelp("[  enter  ]", "✔︎ Run"),
 				),
 				key.NewBinding(
 					key.WithKeys("e"),
-					key.WithHelp("[  e      ]", "📖 Explain code"),
+					key.WithHelp("[  e      ]", "␦ Explain code"),
 				),
 				key.NewBinding(
 					key.WithKeys("m"),
-					key.WithHelp("[  m      ]", "📝 Modify code"),
+					key.WithHelp("[  m      ]", "✎ Modify code"),
 				),
 
 				key.NewBinding(
 					key.WithKeys("c"),
-					key.WithHelp("[  c      ]", "📋 Copy code to clipboard"),
+					key.WithHelp("[  c      ]", "☑︎ Copy code to clipboard"),
 				),
 				key.NewBinding(
 					key.WithKeys("esc"),
-					key.WithHelp("[  esc    ]", "🔙 Go back and amend prompt"),
+					key.WithHelp("[  esc    ]", "↩︎ Go back and amend prompt"),
 				),
 				key.NewBinding(
 					key.WithKeys("ctrl+c"),
-					key.WithHelp("[  ctrl+c ]", "🚪 Exit"),
+					key.WithHelp("[  ctrl+c ]", "⏏︎ Exit"),
 				),
 			},
 		})
@@ -522,11 +522,11 @@ func (m model) View() string {
 				{
 					key.NewBinding(
 						key.WithKeys("esc"),
-						key.WithHelp("[ esc ]", "🔙 Go back"),
+						key.WithHelp("[ esc ]", "↩︎ Go back"),
 					),
 					key.NewBinding(
 						key.WithKeys("ctrl+c"),
-						key.WithHelp("[ ctrl+c ]", "🚪 Exit"),
+						key.WithHelp("[ ctrl+c ]", "⏏︎ Exit"),
 					),
 				},
 			})
@@ -547,15 +547,15 @@ func (m model) View() string {
 			{
 				key.NewBinding(
 					key.WithKeys("enter"),
-					key.WithHelp("[ enter  ]", "💾 Save"),
+					key.WithHelp("[ enter  ]", "✔︎ Save"),
 				),
 				key.NewBinding(
 					key.WithKeys("esc"),
-					key.WithHelp("[ esc    ]", "🔙 Go back"),
+					key.WithHelp("[ esc    ]", "↩︎ Go back"),
 				),
 				key.NewBinding(
 					key.WithKeys("ctrl+c"),
-					key.WithHelp("[ ctrl+c ]", "🚪 Exit"),
+					key.WithHelp("[ ctrl+c ]", "⏏︎ Exit"),
 				),
 			},
 		})
