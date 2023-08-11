@@ -76,6 +76,7 @@ func (i history_list_item) Description() string { return "" }
 func (i history_list_item) FilterValue() string { return i.PromptText }
 
 var history_list_style = lipgloss.NewStyle().Margin(1, 2)
+var screen_style = lipgloss.NewStyle().Margin(1, 2)
 
 func initialModel() model {
 	prompt_textarea := textarea.New()
@@ -444,7 +445,7 @@ func (m model) View() string {
 		})
 
 		// Send the UI for rendering
-		return s
+		return screen_style.Render(s)
 
 	case "prompt_response_screen":
 		s := "Result\n"
@@ -504,7 +505,7 @@ func (m model) View() string {
 				),
 			},
 		})
-		return s
+		return screen_style.Render(s)
 
 	case "running_command_screen":
 		s := "Running command: " + m.response_code_text + "\n\n"
@@ -533,7 +534,7 @@ func (m model) View() string {
 		} else {
 			s += m.loading_spinner.View() + " Processing..." + fmt.Sprintf(" %.1fs\n\n", time.Since(m.loading_timer).Seconds())
 		}
-		return s
+		return screen_style.Render(s)
 
 	case "response_edit_screen":
 		s := "Edit the result command\n\n"
@@ -558,7 +559,7 @@ func (m model) View() string {
 				),
 			},
 		})
-		return s
+		return screen_style.Render(s)
 
 	case "history_screen":
 		return history_list_style.Render(m.history_list.View())
