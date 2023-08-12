@@ -30,8 +30,9 @@ import (
 
 func main() {
 
-	// if flag --config is passed print the appdirconfig and exit
 	configsFlag := flag.Bool("configs", false, "User configs of the application")
+	clearStoreFlag := flag.Bool("clear-store", false, "Clear the history store")
+	// openStoreFileFlag := flag.Bool("open-store-file", false, "Open the history store file in the default editor")
 	flag.Parse()
 
 	if *configsFlag {
@@ -67,6 +68,37 @@ func main() {
 		os.Exit(0)
 
 	}
+
+	if *clearStoreFlag {
+
+		fmt.Println("Are you sure you want to clear the history store? [y/N]")
+		var response string
+		fmt.Scan(&response)
+		if response != "y" {
+			fmt.Println("Aborting")
+			os.Exit(0)
+		}
+
+		err := os.Remove(filepath.Join(getAppConfigDir(), store_file_location))
+		if err != nil {
+			fmt.Printf("Error clearing history file: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("✅ History store cleared")
+		os.Exit(0)
+	}
+
+	// if *openStoreFileFlag {
+	// 	file_path := filepath.Join(getAppConfigDir(), store_file_location)
+	// 	println(file_path)
+	// 	// err := exec.Command("open", "/Users/mr_senor/Library/Application Support/clAI/store.json").Run()
+	// 	err := exec.Command("open", file_path).Run()
+	// 	if err != nil {
+	// 		fmt.Printf("Error opening history file: %v\n", err)
+	// 		os.Exit(1)
+	// 	}
+	// 	os.Exit(0)
+	// }
 
 	p := tea.NewProgram(initialModel(), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
