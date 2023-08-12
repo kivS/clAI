@@ -90,18 +90,17 @@ func initialModel() model {
 	response_code_textInput.CharLimit = 156
 	response_code_textInput.Width = 0
 
+	code_blocks_border_color := "33"
+
 	explanation_result_viewport := viewport.New(78, 10)
 	explanation_result_viewport.Style = lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("62")).
-		PaddingRight(2)
+		BorderForeground(lipgloss.Color(code_blocks_border_color))
 
-	response_code_viewport := viewport.New(100, 7)
+	response_code_viewport := viewport.New(78, 7)
 	response_code_viewport.Style = lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("62")).
-		PaddingLeft(2).
-		PaddingRight(2)
+		BorderForeground(lipgloss.Color(code_blocks_border_color))
 
 	loading_spinner := spinner.New()
 	loading_spinner.Spinner = spinner.Moon
@@ -787,7 +786,7 @@ func copyCommandToClipboard(command string) tea.Cmd {
 func renderResponseCodeViewport(code string) string {
 	renderer, _ := glamour.NewTermRenderer(
 		glamour.WithAutoStyle(),
-		// glamour.WithWordWrap(20),
+		glamour.WithWordWrap(78),
 	)
 
 	str, _ := renderer.Render(fmt.Sprintf("```bash\n%s\n```", code))
@@ -798,7 +797,7 @@ func renderResponseCodeViewport(code string) string {
 func renderExplanationResultViewport(explanation string) string {
 	renderer, _ := glamour.NewTermRenderer(
 		glamour.WithAutoStyle(),
-		glamour.WithWordWrap(60),
+		// glamour.WithWordWrap(60),
 	)
 
 	str, _ := renderer.Render(explanation)
