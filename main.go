@@ -59,7 +59,7 @@ func main() {
 ---
 **OpenAI API key is set?**: ` + is_open_ai_key_set + `
 
-
+---
 `
 
 		str, _ := renderer.Render(content)
