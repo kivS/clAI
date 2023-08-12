@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -28,6 +29,45 @@ import (
 )
 
 func main() {
+
+	// if flag --config is passed print the appdirconfig and exit
+	configsFlag := flag.Bool("configs", false, "User configs of the application")
+	flag.Parse()
+
+	if *configsFlag {
+
+		is_open_ai_key_set := ""
+		if len(os.Getenv("OPENAI_API_KEY")) > 0 {
+			is_open_ai_key_set = "✅"
+		} else {
+			is_open_ai_key_set = "❌"
+		}
+
+		renderer, _ := glamour.NewTermRenderer(
+			glamour.WithAutoStyle(),
+		)
+
+		content := `
+
+# Configs
+
+---
+
+**App config directory**: ` + "`" + getAppConfigDir() + "`" + `
+	
+---
+**OpenAI API key is set?**: ` + is_open_ai_key_set + `
+
+
+`
+
+		str, _ := renderer.Render(content)
+
+		fmt.Println(str)
+		os.Exit(0)
+
+	}
+
 	p := tea.NewProgram(initialModel(), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Alas, there's been an error: %v", err)
@@ -60,6 +100,8 @@ type model struct {
 	terminal_width                    int
 	terminal_height                   int
 }
+
+const store_file_location = "store.json"
 
 // for json umarshall(decode) to work we need to have the fields exported
 // ie, start with a capital letter and also need to tell which fields to use
@@ -808,8 +850,6 @@ func renderExplanationResultViewport(explanation string) string {
 type HistoryFromFileResult struct {
 	history []history_list_item
 }
-
-const store_file_location = "store.json"
 
 /**
 * Loads the store.json into a history_list_item struct
