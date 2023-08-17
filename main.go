@@ -73,7 +73,7 @@ func main() {
 
 		fmt.Println("Are you sure you want to clear the history store? [y/N]")
 		var response string
-		fmt.Scan(&response)
+		fmt.Scanln(&response)
 		if response != "y" {
 			fmt.Println("Aborting")
 			os.Exit(0)
